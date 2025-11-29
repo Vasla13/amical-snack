@@ -1,7 +1,6 @@
 import React, { useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, ShoppingCart, Star, Flame } from "lucide-react";
-// CORRECTION DES CHEMINS D'IMPORT ICI :
 import { formatPrice } from "../../lib/format.js";
 import Button from "../../ui/Button.jsx";
 

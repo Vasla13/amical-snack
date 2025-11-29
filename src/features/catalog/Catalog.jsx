@@ -9,7 +9,7 @@ import { doc, updateDoc, arrayUnion, arrayRemove } from "firebase/firestore";
 
 export default function Catalog({ products }) {
   const { cart, addToCart } = useCart();
-  const { user, userData, db } = useAuth(); // Besoin de db pour les favoris
+  const { user, userData, db } = useAuth();
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("Tout");
   const [loading, setLoading] = useState(true);
@@ -62,12 +62,12 @@ export default function Catalog({ products }) {
   return (
     <div className="px-4 pb-4 min-h-full flex flex-col">
       {/* HEADER FIXE */}
-      <div className="sticky top-0 z-20 bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur pt-2 pb-1 transition-colors">
+      <div className="sticky top-0 z-20 bg-slate-50/95 dark:bg-slate-950/95 backdrop-blur pt-2 pb-1 transition-colors">
         {/* Recherche */}
         <div className="relative mb-4 shadow-sm group">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5 transition-colors group-focus-within:text-teal-500" />
           <input
-            className="w-full pl-11 pr-4 py-3.5 bg-white dark:bg-slate-800 rounded-2xl border border-transparent focus:border-teal-500 outline-none transition-all font-medium text-slate-700 dark:text-slate-200 placeholder:text-slate-400"
+            className="w-full pl-11 pr-4 py-3.5 bg-white dark:bg-slate-900 rounded-2xl border border-transparent focus:border-teal-500 outline-none transition-all font-medium text-slate-700 dark:text-slate-200 placeholder:text-slate-400"
             placeholder="Rechercher..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -83,7 +83,7 @@ export default function Catalog({ products }) {
               className={`whitespace-nowrap px-5 py-2 rounded-xl text-sm font-bold transition-all active:scale-95 ${
                 selectedCategory === cat
                   ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-md"
-                  : "bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-100 dark:border-slate-700"
+                  : "bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 border border-slate-100 dark:border-slate-800"
               }`}
             >
               {cat === "Favoris" && (
@@ -105,7 +105,7 @@ export default function Catalog({ products }) {
           ? Array.from({ length: 6 }).map((_, i) => (
               <div
                 key={i}
-                className="bg-white dark:bg-slate-800 p-3 rounded-3xl h-64 border border-slate-100 dark:border-slate-700 flex flex-col"
+                className="bg-white dark:bg-slate-900 p-3 rounded-3xl h-64 border border-slate-100 dark:border-slate-800 flex flex-col"
               >
                 <Skeleton className="w-full aspect-square rounded-2xl mb-3" />
                 <Skeleton className="w-3/4 h-4 mb-2" />
@@ -124,9 +124,9 @@ export default function Catalog({ products }) {
                 <div
                   key={p.id}
                   onClick={() => available && setSelectedProduct(p)} // Ouvre la modale
-                  className={`group relative bg-white dark:bg-slate-800 p-3 rounded-3xl shadow-[0_4px_20px_rgb(0,0,0,0.03)] dark:shadow-none border border-slate-100 dark:border-slate-700 flex flex-col h-full overflow-hidden transition-all duration-300 active:scale-95 cursor-pointer ${
+                  className={`group relative bg-white dark:bg-slate-900 p-3 rounded-3xl shadow-[0_4px_20px_rgb(0,0,0,0.03)] dark:shadow-none border border-slate-100 dark:border-slate-800 flex flex-col h-full overflow-hidden transition-all duration-300 active:scale-95 cursor-pointer ${
                     qty
-                      ? "ring-2 ring-teal-500 ring-offset-2 dark:ring-offset-slate-900"
+                      ? "ring-2 ring-teal-500 ring-offset-2 dark:ring-offset-slate-950"
                       : ""
                   } ${available ? "" : "opacity-60 grayscale"}`}
                 >
@@ -155,8 +155,8 @@ export default function Catalog({ products }) {
                   </button>
 
                   {/* Image */}
-                  <div className="aspect-square w-full bg-slate-50 dark:bg-slate-700/50 rounded-2xl mb-3 flex items-center justify-center p-3 relative overflow-hidden">
-                    <div className="absolute w-full h-full bg-radial-gradient from-white dark:from-slate-600 to-transparent opacity-60" />
+                  <div className="aspect-square w-full bg-slate-50 dark:bg-slate-800/50 rounded-2xl mb-3 flex items-center justify-center p-3 relative overflow-hidden">
+                    <div className="absolute w-full h-full bg-radial-gradient from-white dark:from-slate-700 to-transparent opacity-60" />
                     <img
                       src={p.image}
                       alt={p.name}
@@ -164,7 +164,7 @@ export default function Catalog({ products }) {
                       onError={(e) => (e.target.style.display = "none")}
                     />
                     {qty > 0 && (
-                      <div className="absolute top-2 right-2 bg-teal-600 text-white text-xs font-black w-6 h-6 flex items-center justify-center rounded-full shadow-lg z-20 animate-in zoom-in ring-2 ring-white dark:ring-slate-800">
+                      <div className="absolute top-2 right-2 bg-teal-600 text-white text-xs font-black w-6 h-6 flex items-center justify-center rounded-full shadow-lg z-20 animate-in zoom-in ring-2 ring-white dark:ring-slate-900">
                         {qty}
                       </div>
                     )}
@@ -187,7 +187,7 @@ export default function Catalog({ products }) {
                         className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
                           available
                             ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900 group-hover:bg-teal-600 dark:group-hover:bg-teal-400"
-                            : "bg-slate-200 dark:bg-slate-700 text-slate-400"
+                            : "bg-slate-200 dark:bg-slate-800 text-slate-400"
                         }`}
                       >
                         <Plus size={16} strokeWidth={3} />
