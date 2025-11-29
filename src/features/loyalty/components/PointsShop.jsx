@@ -11,6 +11,14 @@ import { generateToken } from "../../../lib/token.js";
 const COST_STD = 10;
 const COST_REDBULL = 12;
 
+const normalizePoints = (value) => {
+  const num =
+    typeof value === "string"
+      ? Number(value.replace(",", ".").trim())
+      : Number(value);
+  return Number.isFinite(num) ? num : 0;
+};
+
 export default function PointsShop({ user, products, db, notify, onConfirm }) {
   const buyDirect = async (product) => {
     const isRedBull = (product.name || "").toLowerCase().includes("red bull");
@@ -29,10 +37,11 @@ export default function PointsShop({ user, products, db, notify, onConfirm }) {
 
           await runTransaction(db, async (tx) => {
             const userSnap = await tx.get(userRef);
-            const currentPoints = Number(userSnap.data()?.points || 0);
+            const currentPoints = normalizePoints(userSnap.data()?.points);
             if (currentPoints < cost) throw new Error("POINTS_LOW");
+            const nextPoints = Math.round((currentPoints - cost) * 100) / 100;
 
-            tx.update(userRef, { points: currentPoints - cost });
+            tx.update(userRef, { points: nextPoints });
             tx.set(couponRef, {
               user_id: user.uid,
               items: [
