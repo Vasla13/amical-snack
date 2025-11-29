@@ -22,7 +22,7 @@ export default function AdminDashboard({ db, products, onLogout }) {
   if (error && !feedback) setFeedback({ type: "error", msg: error });
 
   const seed = async () => {
-    if (!confirm("⚠️ Reset stock ?")) return;
+    if (!confirm("Reset stock ?")) return;
     try {
       const snap = await getDocs(collection(db, "products"));
       await Promise.all(snap.docs.map((d) => deleteDoc(d.ref)));
@@ -32,7 +32,7 @@ export default function AdminDashboard({ db, products, onLogout }) {
           is_available: true,
         });
       }
-      alert("✅ Stock réinitialisé !");
+      alert("Stock r\u00e9initialis\u00e9 !");
     } catch (e) {
       alert("Erreur seed: " + e.message);
     }
@@ -53,7 +53,7 @@ export default function AdminDashboard({ db, products, onLogout }) {
             onClick={onLogout}
             className="bg-white border text-gray-800 px-3 py-2 rounded-xl text-xs font-bold shadow-sm flex items-center gap-2"
           >
-            <LogOut size={16} /> Déco
+            <LogOut size={16} /> D\u00e9co
           </button>
         </div>
       </div>

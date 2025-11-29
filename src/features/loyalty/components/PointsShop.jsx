@@ -3,7 +3,7 @@ import {
   doc,
   collection,
   serverTimestamp,
-  writeBatch,
+  runTransaction,
 } from "firebase/firestore";
 import { Ticket } from "lucide-react";
 import { generateToken } from "../../../lib/token.js";
@@ -20,29 +20,41 @@ export default function PointsShop({ user, products, db, notify, onConfirm }) {
       return notify("Points insuffisants", "error");
 
     onConfirm({
-      title: "Échanger des points",
+      title: "\u00c9changer des points",
       text: `Acheter ${product.name} pour ${cost} points ?`,
       onOk: async () => {
         try {
-          const batch = writeBatch(db);
           const userRef = doc(db, "users", user.uid);
-          batch.update(userRef, { points: user.points - cost });
-
           const couponRef = doc(collection(db, "orders"));
-          batch.set(couponRef, {
-            user_id: user.uid,
-            items: [{ ...product, qty: 1, price_cents: 0, name: product.name }],
-            total_cents: 0,
-            status: "reward_pending",
-            payment_method: "loyalty",
-            source: "Boutique",
-            created_at: serverTimestamp(),
-            qr_token: generateToken(),
+
+          await runTransaction(db, async (tx) => {
+            const userSnap = await tx.get(userRef);
+            const currentPoints = Number(userSnap.data()?.points || 0);
+            if (currentPoints < cost) throw new Error("POINTS_LOW");
+
+            tx.update(userRef, { points: currentPoints - cost });
+            tx.set(couponRef, {
+              user_id: user.uid,
+              items: [
+                { ...product, qty: 1, price_cents: 0, name: product.name },
+              ],
+              total_cents: 0,
+              status: "reward_pending",
+              payment_method: "loyalty",
+              source: "Boutique",
+              created_at: serverTimestamp(),
+              qr_token: generateToken(),
+            });
           });
-          await batch.commit();
-          notify("Coupon ajouté au Pass !", "success");
-        } catch {
-          notify("Erreur lors de l'achat.", "error");
+
+          notify("Coupon ajout\u00e9 au Pass !", "success");
+        } catch (error) {
+          notify(
+            error?.message === "POINTS_LOW"
+              ? "Points insuffisants"
+              : "Erreur lors de l'achat.",
+            "error"
+          );
         }
       },
     });

@@ -17,7 +17,7 @@ export default function LoyaltyScreen({
       <div className="bg-gradient-to-br from-indigo-900 to-purple-800 p-6 rounded-3xl text-white shadow-xl mb-8 relative overflow-hidden">
         <div className="relative z-10 text-center">
           <div className="text-xs font-bold text-indigo-200 uppercase tracking-widest mb-1">
-            Solde Fidélité
+            Solde Fid\u00e9lit\u00e9
           </div>
           <div className="text-6xl font-black text-yellow-400 drop-shadow-md">
             {Number(user?.points || 0)

@@ -3,7 +3,7 @@ import {
   doc,
   collection,
   serverTimestamp,
-  writeBatch,
+  runTransaction,
 } from "firebase/firestore";
 import { Dices } from "lucide-react";
 import Button from "../../../ui/Button.jsx";
@@ -62,7 +62,7 @@ export default function RouletteGame({
 
     strip.style.transition = "none";
     strip.style.transform = "translateX(0px)";
-    // eslint-disable-next-line no-unused-expressions
+    // force reflow
     strip.offsetHeight;
 
     const containerW = containerRef.current?.clientWidth || 0;
@@ -70,18 +70,13 @@ export default function RouletteGame({
     const translateX = centerTarget - containerW / 2;
     const jitter = Math.floor(Math.random() * 40) - 20;
 
-    const animTimer = setTimeout(() => {
-      strip.style.transition =
-        "transform 5.5s cubic-bezier(0.15, 0.85, 0.25, 1)";
-      strip.style.transform = `translateX(-${translateX + jitter}px)`;
-    }, 50);
-
+    let animId;
     const finishTimer = setTimeout(() => {
       setSpinning(false);
       if (onConfirmRef.current) {
         onConfirmRef.current({
-          title: "C'est gagné ! 🎉",
-          text: `Tu as remporté : ${winner.name}.`,
+          title: "C'est gagn\u00e9 !",
+          text: `Tu as remport\u00e9 : ${winner.name}.`,
           confirmText: "Voir mon Pass",
           cancelText: "Rejouer",
           onOk: () => onGoToPassRef.current && onGoToPassRef.current(),
@@ -89,8 +84,16 @@ export default function RouletteGame({
       }
     }, 6000);
 
+    animId = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        strip.style.transition =
+          "transform 5.5s cubic-bezier(0.15, 0.85, 0.25, 1)";
+        strip.style.transform = `translateX(-${translateX + jitter}px)`;
+      });
+    });
+
     return () => {
-      clearTimeout(animTimer);
+      if (animId) cancelAnimationFrame(animId);
       clearTimeout(finishTimer);
     };
   }, [spinning, rouletteItems, winner]);
@@ -110,24 +113,28 @@ export default function RouletteGame({
       const winnerItem = pickRandomWeighted(pool);
       setWinner(winnerItem);
 
-      const batch = writeBatch(db);
       const userRef = doc(db, "users", user.uid);
-      batch.update(userRef, { points: user.points - COST_ROULETTE });
-
       const couponRef = doc(collection(db, "orders"));
-      batch.set(couponRef, {
-        user_id: user.uid,
-        items: [
-          { ...winnerItem, qty: 1, price_cents: 0, name: winnerItem.name },
-        ],
-        total_cents: 0,
-        status: "reward_pending",
-        payment_method: "loyalty",
-        source: "Roulette",
-        created_at: serverTimestamp(),
-        qr_token: generateToken(),
+
+      await runTransaction(db, async (tx) => {
+        const userSnap = await tx.get(userRef);
+        const currentPoints = Number(userSnap.data()?.points || 0);
+        if (currentPoints < COST_ROULETTE) throw new Error("POINTS_LOW");
+
+        tx.update(userRef, { points: currentPoints - COST_ROULETTE });
+        tx.set(couponRef, {
+          user_id: user.uid,
+          items: [
+            { ...winnerItem, qty: 1, price_cents: 0, name: winnerItem.name },
+          ],
+          total_cents: 0,
+          status: "reward_pending",
+          payment_method: "loyalty",
+          source: "Roulette",
+          created_at: serverTimestamp(),
+          qr_token: generateToken(),
+        });
       });
-      await batch.commit();
 
       const strip = [];
       for (let i = 0; i < TOTAL_ITEMS; i++) {
@@ -141,7 +148,12 @@ export default function RouletteGame({
     } catch (error) {
       console.error(error);
       setSpinning(false);
-      notify("Erreur technique.", "error");
+      notify(
+        error?.message === "POINTS_LOW"
+          ? "Pas assez de points !"
+          : "Erreur technique.",
+        "error"
+      );
     }
   };
 
@@ -170,7 +182,7 @@ export default function RouletteGame({
           >
             {(rouletteItems.length > 0
               ? rouletteItems
-              : products.slice(0, 10)
+              : (products || []).slice(0, 10)
             ).map((p, i) => (
               <div
                 key={i}
