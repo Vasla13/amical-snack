@@ -7,12 +7,26 @@ import {
   updateDoc,
   serverTimestamp,
   setDoc,
+  getDoc,
 } from "firebase/firestore";
-import { signInAnonymously, onAuthStateChanged } from "firebase/auth";
-import { ShoppingBag, CreditCard, QrCode, User, RefreshCw } from "lucide-react";
+import {
+  onAuthStateChanged,
+  isSignInWithEmailLink,
+  signInWithEmailLink,
+  updatePassword,
+} from "firebase/auth"; // Imports auth mis à jour
+import {
+  ShoppingBag,
+  CreditCard,
+  QrCode,
+  User,
+  RefreshCw,
+  Key,
+  Check,
+} from "lucide-react";
 
 import { auth, db } from "./config/firebase.js";
-import { ADMIN_EMAILS } from "./config/constants.js";
+import { ADMIN_EMAIL } from "./config/constants.js";
 import { generateToken } from "./lib/token.js";
 
 import Catalog from "./features/catalog/Catalog.jsx";
@@ -22,6 +36,7 @@ import Profile from "./features/profile/Profile.jsx";
 import AdminDashboard from "./features/admin/AdminDashboard.jsx";
 import LoginScreen from "./features/auth/LoginScreen.jsx";
 import NavBtn from "./ui/NavBtn.jsx";
+import Button from "./ui/Button.jsx"; // Besoin du bouton pour l'écran creation mot de passe
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -32,53 +47,103 @@ export default function App() {
   const [tab, setTab] = useState("catalog");
   const [currentOrder, setCurrentOrder] = useState(null);
 
+  // État pour la création du MDP
+  const [newPassword, setNewPassword] = useState("");
+  const [pwdLoading, setPwdLoading] = useState(false);
+
   const userDataRef = useRef(null);
   useEffect(() => {
     userDataRef.current = userData;
   }, [userData]);
 
-  // Auth
+  // 1. GESTION DU RETOUR MAIL (Magic Link)
   useEffect(() => {
-    signInAnonymously(auth);
-    return onAuthStateChanged(auth, (u) => {
+    if (isSignInWithEmailLink(auth, window.location.href)) {
+      let email = window.localStorage.getItem("emailForSignIn");
+      if (!email) {
+        // Si l'email n'est pas dans le storage (changement d'appareil), on le demande
+        email = window.prompt(
+          "Confirme ton email pour finaliser la connexion :"
+        );
+      }
+
+      if (email) {
+        signInWithEmailLink(auth, email, window.location.href)
+          .then((result) => {
+            window.localStorage.removeItem("emailForSignIn");
+            // Le onAuthStateChanged va prendre le relais pour la suite
+            // On force un rechargement propre de l'URL pour enlever le code moche
+            window.history.replaceState({}, document.title, "/");
+          })
+          .catch((error) => {
+            alert("Lien expiré ou invalide. Recommence.");
+            setView("login");
+          });
+      }
+    }
+  }, []);
+
+  // 2. ÉCOUTE DE L'ÉTAT AUTH
+  useEffect(() => {
+    return onAuthStateChanged(auth, async (u) => {
       setUser(u);
-      if (!u) setView("login");
+
+      if (!u) {
+        setView("login");
+        setUserData(null);
+      } else {
+        // L'user est connecté. On vérifie s'il existe en base.
+        const userRef = doc(db, "users", u.uid);
+        const snap = await getDoc(userRef);
+
+        if (!snap.exists()) {
+          // C'est un NOUVEAU (venu par lien magique)
+          // On crée son profil mais on va le forcer à créer un MDP juste après
+          const isAdmin = u.email === ADMIN_EMAIL;
+          await setDoc(userRef, {
+            email: u.email,
+            displayName: u.email ? u.email.split("@")[0] : "Utilisateur",
+            role: isAdmin ? "admin" : "user",
+            points: isAdmin ? 9999 : 0,
+            balance_cents: 0,
+            created_at: serverTimestamp(),
+            setup_complete: false, // Flag important !
+          });
+        }
+      }
     });
   }, []);
 
-  // User doc listener
+  // 3. ÉCOUTE DES DONNÉES UTILISATEUR
   useEffect(() => {
     if (!user) return;
+    const unsub = onSnapshot(doc(db, "users", user.uid), (s) => {
+      if (s.exists()) {
+        const data = s.data();
+        setUserData(data);
 
-    return onSnapshot(doc(db, "users", user.uid), (s) => {
-      if (!s.exists()) {
-        setUserData(null);
-        setView("login");
-        return;
+        // LOGIQUE DE ROUTAGE PRINCIPALE
+        if (data.role === "admin") {
+          setView("admin");
+        } else if (data.setup_complete === false) {
+          // Si le setup n'est pas fini (pas de mot de passe)
+          setView("create_password");
+        } else {
+          setView("app");
+        }
       }
-
-      const data = s.data();
-      setUserData(data);
-
-      if (!data.email) {
-        setView("login");
-        return;
-      }
-
-      setView(data.role === "admin" ? "admin" : "app");
     });
+    return () => unsub();
   }, [user]);
 
-  // Products listener
+  // CATALOGUE & COMMANDES (identique)
   useEffect(() => {
     if (!user) return;
     return onSnapshot(collection(db, "products"), (s) => {
-      const p = s.docs.map((d) => ({ id: d.id, ...d.data() }));
-      setProducts(p);
+      setProducts(s.docs.map((d) => ({ id: d.id, ...d.data() })));
     });
   }, [user]);
 
-  // Current order realtime listener
   useEffect(() => {
     if (!currentOrder?.id) return;
     const unsub = onSnapshot(doc(db, "orders", currentOrder.id), (d) => {
@@ -87,49 +152,40 @@ export default function App() {
     return () => unsub();
   }, [currentOrder?.id]);
 
-  const handleLogin = async (email) => {
-    if (!email.includes("@uha.fr")) return alert("Email @uha.fr requis");
-    const isAdmin = ADMIN_EMAILS.includes(email);
-
-    await setDoc(
-      doc(db, "users", user.uid),
-      {
-        email,
-        role: isAdmin ? "admin" : "user",
-        displayName: email.split(".")[0],
-        points: isAdmin ? 999 : userDataRef.current?.points || 0,
-        // solde (pour PayPal) : en centimes
-        balance_cents: userDataRef.current?.balance_cents ?? 0,
-      },
-      { merge: true }
-    );
+  // FONCTION : CRÉATION DU MOT DE PASSE (FIN DU PROCESSUS)
+  const handleCreatePassword = async () => {
+    if (newPassword.length < 6) return alert("6 caractères minimum stp !");
+    setPwdLoading(true);
+    try {
+      await updatePassword(user, newPassword);
+      // On marque le setup comme complet
+      await updateDoc(doc(db, "users", user.uid), {
+        setup_complete: true,
+      });
+      alert("Mot de passe créé ! Tu pourras l'utiliser la prochaine fois.");
+      // La vue passera automatiquement à "app" grâce au listener
+    } catch (e) {
+      alert("Erreur : " + e.message);
+    } finally {
+      setPwdLoading(false);
+    }
   };
 
-  // Déconnexion
   const handleLogout = async () => {
-    if (!user) return;
-
+    await auth.signOut();
     setCart([]);
     setCurrentOrder(null);
     setTab("catalog");
-
-    await setDoc(
-      doc(db, "users", user.uid),
-      { email: null, role: null, displayName: null },
-      { merge: true }
-    );
-
     setView("login");
   };
 
+  // ... (fonctions createOrder, payOrder, requestCashPayment identiques au précédent code)
   const createOrder = async () => {
+    /* ... code identique ... */
     if (!cart.length) return;
-
     const outOfStock = cart.find((i) => i.is_available === false);
     if (outOfStock) return alert(`Produit en rupture: ${outOfStock.name}`);
-
     const total = cart.reduce((s, i) => s + i.price_cents * i.qty, 0);
-
     const orderData = {
       user_id: user.uid,
       items: cart,
@@ -139,42 +195,23 @@ export default function App() {
       created_at: serverTimestamp(),
       payment_method: null,
     };
-
     const ref = await addDoc(collection(db, "orders"), orderData);
     setCurrentOrder({ id: ref.id, ...orderData });
     setCart([]);
     setTab("order");
   };
 
-  // ✅ Points fidélité : 1€ = 1 point
-  const creditPoints = async (totalCents) => {
-    const prevCenti = Math.round(
-      Number(userDataRef.current?.points || 0) * 100
-    );
-    const newPoints = (prevCenti + Number(totalCents || 0)) / 100;
-    await updateDoc(doc(db, "users", user.uid), { points: newPoints });
-  };
-
-  // Paiement (Apple Pay / Google Pay / PayPal solde)
   const payOrder = async (method) => {
+    /* ... code identique ... */
     if (!currentOrder) return;
-
     const totalCents = Number(currentOrder.total_cents || 0);
-
-    // PayPal via solde
     if (method === "paypal_balance") {
       const balance = Number(userDataRef.current?.balance_cents || 0);
-      if (balance < totalCents) {
-        alert("Solde insuffisant pour payer via PayPal.");
-        return;
-      }
-
-      // déduire le solde
+      if (balance < totalCents) return alert("Solde insuffisant.");
       await updateDoc(doc(db, "users", user.uid), {
         balance_cents: balance - totalCents,
       });
     }
-
     await updateDoc(doc(db, "orders", currentOrder.id), {
       status: "paid",
       paid_at: serverTimestamp(),
@@ -182,20 +219,23 @@ export default function App() {
       payment_simulated: true,
       points_earned: totalCents / 100,
     });
-
-    await creditPoints(totalCents);
+    const prevPts = Number(userDataRef.current?.points || 0);
+    await updateDoc(doc(db, "users", user.uid), {
+      points: prevPts + totalCents / 100,
+    });
   };
 
-  // Espèces → notifier vendeur (status cash)
   const requestCashPayment = async () => {
+    /* ... code identique ... */
     if (!currentOrder) return;
-
     await updateDoc(doc(db, "orders", currentOrder.id), {
       status: "cash",
       cash_requested_at: serverTimestamp(),
       payment_method: "cash",
     });
   };
+
+  // --- RENDER ---
 
   if (view === "loading") {
     return (
@@ -205,7 +245,46 @@ export default function App() {
     );
   }
 
-  if (view === "login") return <LoginScreen onLogin={handleLogin} />;
+  if (view === "login") return <LoginScreen />;
+
+  // ÉCRAN SPÉCIAL : CRÉATION MOT DE PASSE
+  if (view === "create_password") {
+    return (
+      <div className="h-screen flex flex-col items-center justify-center p-6 bg-white font-sans text-center">
+        <div className="bg-green-100 p-4 rounded-full mb-4 text-green-700">
+          <Check size={48} />
+        </div>
+        <h1 className="text-2xl font-black text-gray-800 mb-2">
+          Email vérifié !
+        </h1>
+        <p className="text-gray-500 mb-8">
+          Dernière étape : choisis un mot de passe pour te connecter plus vite
+          la prochaine fois.
+        </p>
+        <div className="w-full max-w-sm space-y-4">
+          <div className="text-left">
+            <label className="text-xs font-bold text-gray-400 uppercase ml-1">
+              Nouveau mot de passe
+            </label>
+            <input
+              type="password"
+              className="w-full p-4 bg-gray-50 rounded-xl border focus:border-teal-500 outline-none font-bold"
+              placeholder="••••••••"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+            />
+          </div>
+          <Button
+            onClick={handleCreatePassword}
+            disabled={pwdLoading}
+            className="w-full shadow-lg shadow-green-100 bg-green-600 hover:bg-green-700"
+          >
+            {pwdLoading ? "Enregistrement..." : "TERMINER L'INSCRIPTION"}
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   if (view === "admin")
     return (
@@ -224,15 +303,14 @@ export default function App() {
           />
           <div>
             <h1 className="font-black text-lg text-teal-800 leading-none">
-              AMICALE R&amp;T
+              AMICALE R&T
             </h1>
             <p className="text-xs text-gray-400 font-bold">COLMAR</p>
           </div>
         </div>
-
         <div className="bg-teal-50 px-3 py-1 rounded-full border border-teal-100 flex items-center gap-1">
           <span className="font-bold text-teal-800">
-            {userData?.points ?? 0}
+            {Number(userData?.points ?? 0).toFixed(2)}
           </span>
           <span className="text-[10px] uppercase text-teal-600 font-bold">
             pts
@@ -265,6 +343,7 @@ export default function App() {
             logout={handleLogout}
             db={db}
             uid={user?.uid}
+            auth={auth}
           />
         )}
       </main>
