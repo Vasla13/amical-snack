@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef } from "react";
 import {
   doc,
   updateDoc,
@@ -6,92 +6,100 @@ import {
   collection,
   serverTimestamp,
 } from "firebase/firestore";
-import { Gift, Dices, Sparkles } from "lucide-react";
+import { Gift, Dices, Sparkles, Ticket } from "lucide-react";
 import Button from "../../ui/Button.jsx";
+import { generateToken } from "../../lib/token.js"; // Import du générateur propre
 
 const COST_ROULETTE = 5;
 const COST_STD = 10;
 const COST_REDBULL = 12;
 
-export default function LoyaltyScreen({ user, products, db }) {
+const CARD_WIDTH = 128;
+const GAP = 8;
+const ITEM_SIZE = CARD_WIDTH + GAP;
+const WINNER_INDEX = 35;
+const TOTAL_ITEMS = 40;
+
+// Fonction pure (helpers) en dehors du composant pour éviter les erreurs de linter
+const pickRandomWeighted = (pool) => {
+  const itemsWithWeight = pool.map((p) => ({
+    ...p,
+    weight: 1000 / (Number(p.price_cents) || 100),
+  }));
+  const totalWeight = itemsWithWeight.reduce(
+    (sum, item) => sum + item.weight,
+    0
+  );
+  let random = Math.random() * totalWeight;
+  for (const item of itemsWithWeight) {
+    if (random < item.weight) return item;
+    random -= item.weight;
+  }
+  return pool[0];
+};
+
+export default function LoyaltyScreen({ user, products, db, onGoToPass }) {
   const [spinning, setSpinning] = useState(false);
-  const [winner, setWinner] = useState(null);
   const [rouletteItems, setRouletteItems] = useState([]);
 
   const stripRef = useRef(null);
-
-  // LOGIQUE PROBABILITÉS
-  const pickWinner = () => {
-    // 1. Filtrer les produits valides
-    const pool = (products || []).filter((p) => p.is_available !== false);
-
-    // SÉCURITÉ : Si aucun produit dispo, on renvoie null
-    if (!pool || pool.length === 0) return null;
-
-    // 2. Poids = 1 / prix. (Moins cher = Plus lourd = Plus de chance)
-    const itemsWithWeight = pool.map((p) => ({
-      ...p,
-      weight: 1 / (Number(p.price_cents) || 100), // Sécurité si price_cents est 0 ou null
-    }));
-
-    const totalWeight = itemsWithWeight.reduce(
-      (sum, item) => sum + item.weight,
-      0
-    );
-    let random = Math.random() * totalWeight;
-
-    for (const item of itemsWithWeight) {
-      if (random < item.weight) return item;
-      random -= item.weight;
-    }
-    return pool[0];
-  };
+  const containerRef = useRef(null);
 
   const spin = async () => {
     if (spinning) return;
     if ((user?.points || 0) < COST_ROULETTE)
       return alert("Pas assez de points !");
 
-    // SÉCURITÉ : Vérifier qu'on a des produits avant de lancer
-    const testWinner = pickWinner();
-    if (!testWinner)
-      return alert(
-        "Oups ! La roulette est vide pour le moment (stock épuisé ?)."
-      );
+    const pool = (products || []).filter((p) => p.is_available !== false);
+    if (!pool.length) return alert("Stock vide !");
 
     const userRef = doc(db, "users", user.uid);
-    const newPoints = user.points - COST_ROULETTE;
-    await updateDoc(userRef, { points: newPoints });
+    await updateDoc(userRef, { points: user.points - COST_ROULETTE });
 
-    const winItem = pickWinner(); // Vrai gagnant
-    setWinner(null);
-    setSpinning(true);
+    const winnerItem = pickRandomWeighted(pool);
 
-    // Générer la bande
     const strip = [];
-    for (let i = 0; i < 50; i++) {
-      if (i === 45) strip.push(winItem);
-      else {
-        const randomItem = pickWinner();
-        if (randomItem) strip.push(randomItem);
+    for (let i = 0; i < TOTAL_ITEMS; i++) {
+      if (i === WINNER_INDEX) {
+        strip.push({ ...winnerItem, isWinner: true });
+      } else {
+        strip.push({ ...pickRandomWeighted(pool), isWinner: false });
       }
     }
     setRouletteItems(strip);
+    setSpinning(true);
+
+    if (stripRef.current) {
+      stripRef.current.style.transition = "none";
+      stripRef.current.style.transform = "translateX(0px)";
+    }
 
     setTimeout(() => {
-      if (stripRef.current) {
-        const scrollAmount = 45 * 136 - stripRef.current.clientWidth / 2 + 64;
+      if (stripRef.current && containerRef.current) {
+        const containerW = containerRef.current.clientWidth;
+        const centerOfWinner = WINNER_INDEX * ITEM_SIZE + CARD_WIDTH / 2;
+        const scrollAmount = centerOfWinner - containerW / 2;
+        const randomOffset = Math.floor(Math.random() * 20) - 10;
+
         stripRef.current.style.transition =
-          "transform 4s cubic-bezier(0.1, 0.9, 0.2, 1)";
-        stripRef.current.style.transform = `translateX(-${scrollAmount}px)`;
+          "transform 5s cubic-bezier(0.15, 0.9, 0.25, 1)";
+        stripRef.current.style.transform = `translateX(-${
+          scrollAmount + randomOffset
+        }px)`;
       }
-    }, 50);
+    }, 100);
 
     setTimeout(async () => {
+      await createCoupon(winnerItem, "Roulette");
       setSpinning(false);
-      setWinner(winItem);
-      await createFreeOrder(winItem, "Roulette");
-    }, 4100);
+      if (
+        confirm(
+          `GAGNÉ : ${winnerItem.name} !\n\nTon coupon a été généré. Veux-tu l'afficher maintenant ?`
+        )
+      ) {
+        onGoToPass();
+      }
+    }, 5500);
   };
 
   const buyDirect = async (product) => {
@@ -99,145 +107,124 @@ export default function LoyaltyScreen({ user, products, db }) {
     const cost = isRedBull ? COST_REDBULL : COST_STD;
 
     if ((user?.points || 0) < cost) return alert("Pas assez de points !");
-    if (!confirm(`Acheter ${product.name} pour ${cost} points ?`)) return;
+    if (!confirm(`Échanger ${cost} points contre : ${product.name} ?`)) return;
 
     const userRef = doc(db, "users", user.uid);
     await updateDoc(userRef, { points: user.points - cost });
 
-    await createFreeOrder(product, "Achat Points");
-    alert(`Bravo ! ${product.name} commandé.`);
+    await createCoupon(product, "Boutique Points");
+    if (confirm("Coupon généré ! Voir mon coupon ?")) {
+      onGoToPass();
+    }
   };
 
-  const createFreeOrder = async (item, method) => {
-    const orderData = {
+  const createCoupon = async (item, source) => {
+    const couponData = {
       user_id: user.uid,
-      items: [
-        {
-          ...item,
-          qty: 1,
-          price_cents: 0,
-          name: `${item.name} (CADEAU ${method})`,
-        },
-      ],
+      items: [{ ...item, qty: 1, price_cents: 0, name: item.name }],
       total_cents: 0,
-      status: "paid",
-      payment_method: "loyalty_gift",
+      status: "reward_pending",
+      payment_method: "loyalty",
+      source: source,
       created_at: serverTimestamp(),
-      qr_token: Math.random().toString(36).substring(2, 6).toUpperCase(),
-      points_earned: 0,
+      qr_token: generateToken(), // Utilisation du helper propre
     };
-    await addDoc(collection(db, "orders"), orderData);
+    await addDoc(collection(db, "orders"), couponData);
   };
 
   return (
     <div className="p-4 pb-24 bg-gray-50 min-h-full">
-      <div className="bg-gradient-to-r from-teal-700 to-teal-900 p-6 rounded-3xl text-white shadow-lg mb-6 relative overflow-hidden">
-        <div className="relative z-10">
-          <div className="text-xs font-bold text-teal-200 uppercase mb-1">
-            Mon Solde
+      <div className="bg-gradient-to-br from-indigo-900 to-purple-800 p-6 rounded-3xl text-white shadow-xl mb-8 relative overflow-hidden">
+        <div className="relative z-10 text-center">
+          <div className="text-xs font-bold text-indigo-200 uppercase tracking-widest mb-1">
+            Solde Fidélité
           </div>
-          <div className="text-5xl font-black text-yellow-400 flex items-baseline gap-2">
+          <div className="text-6xl font-black text-yellow-400 drop-shadow-md">
             {Number(user?.points || 0)
               .toFixed(2)
               .replace(/[.,]00$/, "")}
-            <span className="text-lg text-white">pts</span>
+            <span className="text-xl text-yellow-200 ml-2">pts</span>
           </div>
         </div>
-        <Sparkles className="absolute right-[-20px] top-[-20px] text-yellow-400/20 w-32 h-32 animate-pulse" />
+        <Sparkles className="absolute left-4 top-4 text-yellow-400/30 w-12 h-12 animate-pulse" />
+        <Sparkles className="absolute right-[-10px] bottom-[-10px] text-purple-400/20 w-32 h-32" />
       </div>
 
-      <div className="mb-8">
-        <h2 className="font-black text-xl text-gray-800 mb-2 flex items-center gap-2">
-          <Dices className="text-purple-600" /> La Roulette
-        </h2>
-        <p className="text-xs text-gray-500 mb-4">
-          Tente ta chance pour <strong>{COST_ROULETTE} pts</strong>. Plus le
-          produit est cher, plus il est rare !
-        </p>
+      <div className="mb-10">
+        <div className="flex items-center justify-between mb-2 px-1">
+          <h2 className="font-black text-xl text-gray-800 flex items-center gap-2">
+            <Dices className="text-indigo-600" /> Case Opening
+          </h2>
+          <span className="bg-indigo-100 text-indigo-700 text-xs font-black px-2 py-1 rounded-lg">
+            {COST_ROULETTE} pts
+          </span>
+        </div>
 
-        <div className="bg-gray-900 rounded-2xl p-1 shadow-inner border-4 border-gray-800 relative overflow-hidden h-40 flex items-center">
-          <div className="absolute left-1/2 top-0 bottom-0 w-1 bg-yellow-500 z-20 -translate-x-1/2 shadow-[0_0_10px_yellow]"></div>
-
-          <div
-            ref={stripRef}
-            className="flex gap-2 px-[50%] will-change-transform"
-            style={{ transform: "translateX(0px)" }}
-          >
-            {(spinning || rouletteItems.length > 0
-              ? rouletteItems
-              : products.slice(0, 15)
-            ).map((p, i) => (
-              <div
-                key={i}
-                className="flex-shrink-0 w-32 h-32 bg-white rounded-lg p-2 flex flex-col items-center justify-center border border-gray-700 relative"
-              >
-                <img
-                  src={p.image}
-                  className="h-16 w-16 object-contain mb-2"
-                  onError={(e) => (e.target.style.display = "none")}
-                />
-                <div className="text-[10px] font-bold text-center leading-tight line-clamp-2">
-                  {p.name}
-                </div>
-                <div
-                  className={`absolute top-1 right-1 w-2 h-2 rounded-full ${
-                    p.price_cents > 150
-                      ? "bg-red-500"
-                      : p.price_cents > 100
-                      ? "bg-blue-500"
-                      : "bg-gray-300"
-                  }`}
-                />
-              </div>
-            ))}
+        <div className="relative">
+          <div className="absolute left-1/2 -top-1 -translate-x-1/2 z-30">
+            <div className="w-0 h-0 border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent border-t-[14px] border-t-gray-800 filter drop-shadow-md"></div>
+          </div>
+          <div className="absolute left-1/2 -bottom-1 -translate-x-1/2 z-30">
+            <div className="w-0 h-0 border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent border-b-[14px] border-b-gray-800 filter drop-shadow-md"></div>
           </div>
 
-          {winner && !spinning && (
-            <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center z-30 animate-in fade-in">
-              <h3 className="text-white font-black text-xl mb-1 text-center">
-                GAGNÉ !
-              </h3>
-              <img
-                src={winner.image}
-                className="w-16 h-16 object-contain drop-shadow-[0_0_15px_rgba(255,255,255,0.5)]"
-              />
-              <p className="text-yellow-400 font-bold text-sm mt-1">
-                {winner.name}
-              </p>
-              <button
-                onClick={() => {
-                  setWinner(null);
-                  setRouletteItems([]);
-                  if (stripRef.current)
-                    stripRef.current.style.transform = "translateX(0)";
-                }}
-                className="mt-2 text-xs bg-white text-black px-3 py-1 rounded-full font-bold hover:scale-105 transition"
-              >
-                Récupérer
-              </button>
+          <div
+            ref={containerRef}
+            className="h-44 bg-[#1a1a1a] rounded-2xl border-4 border-gray-800 shadow-inner overflow-hidden relative flex items-center"
+          >
+            <div className="absolute left-1/2 top-0 bottom-0 w-[2px] bg-yellow-500/30 z-20 -translate-x-1/2"></div>
+
+            <div
+              ref={stripRef}
+              className="flex gap-2 pl-[50%] will-change-transform"
+              style={{ transform: "translateX(0px)" }}
+            >
+              {(spinning || rouletteItems.length > 0
+                ? rouletteItems
+                : products.slice(0, 10)
+              ).map((p, i) => {
+                const isRare = p.price_cents > 140;
+                const borderColor = isRare
+                  ? "border-yellow-500 bg-yellow-500/10"
+                  : "border-gray-700 bg-white";
+
+                return (
+                  <div
+                    key={i}
+                    className={`flex-shrink-0 w-32 h-32 rounded-xl border-2 ${borderColor} p-2 flex flex-col items-center justify-center relative overflow-hidden`}
+                  >
+                    <img
+                      src={p.image}
+                      className="h-20 w-20 object-contain z-10"
+                      onError={(e) => (e.target.style.display = "none")}
+                    />
+                    {isRare && (
+                      <div className="absolute inset-0 bg-yellow-400/10 z-0 animate-pulse"></div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
-          )}
+          </div>
         </div>
 
         <Button
           onClick={spin}
           disabled={spinning || (user?.points || 0) < COST_ROULETTE}
-          className={`w-full mt-4 py-4 text-lg shadow-purple-200 ${
-            spinning ? "grayscale" : "bg-purple-600 hover:bg-purple-700"
+          className={`w-full mt-4 py-4 text-lg font-black shadow-lg ${
+            spinning
+              ? "grayscale opacity-80 cursor-wait"
+              : "bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200"
           }`}
         >
-          {spinning ? "Bonne chance..." : `LANCER (${COST_ROULETTE} pts)`}
+          {spinning ? "TIRAGE EN COURS..." : "LANCER LA ROULETTE"}
         </Button>
       </div>
 
       <div>
-        <h2 className="font-black text-xl text-gray-800 mb-2 flex items-center gap-2">
-          <Gift className="text-teal-600" /> Échanger
+        <h2 className="font-black text-xl text-gray-800 mb-4 flex items-center gap-2 px-1">
+          <Ticket className="text-teal-600" /> Boutique
         </h2>
-        <p className="text-xs text-gray-500 mb-4">
-          Achète directement. <strong>{COST_STD} pts</strong> (ou{" "}
-          <strong>{COST_REDBULL} pts</strong> pour Red Bull).
-        </p>
 
         <div className="grid grid-cols-2 gap-3">
           {(products || [])
@@ -250,30 +237,34 @@ export default function LoyaltyScreen({ user, products, db }) {
               return (
                 <div
                   key={p.id}
-                  className="bg-white p-3 rounded-xl border border-gray-100 shadow-sm flex flex-col items-center text-center relative overflow-hidden"
+                  className="bg-white p-3 rounded-2xl border border-gray-100 shadow-sm flex flex-col relative group"
                 >
-                  <div className="bg-gray-100 text-gray-500 text-[10px] font-black px-2 py-1 rounded-full mb-2">
+                  <div className="absolute top-2 right-2 bg-gray-100 text-gray-600 text-[10px] font-black px-2 py-1 rounded-full">
                     {cost} pts
                   </div>
-                  <img
-                    src={p.image}
-                    className="h-20 w-20 object-contain mb-2"
-                    onError={(e) => (e.target.style.display = "none")}
-                  />
-                  <div className="font-bold text-xs leading-tight mb-2 line-clamp-1">
+
+                  <div className="h-24 w-full flex items-center justify-center mb-2">
+                    <img
+                      src={p.image}
+                      className="h-20 w-20 object-contain transition-transform group-hover:scale-110"
+                      onError={(e) => (e.target.style.display = "none")}
+                    />
+                  </div>
+
+                  <div className="font-bold text-xs leading-tight mb-3 line-clamp-1 text-gray-800">
                     {p.name}
                   </div>
 
                   <button
                     onClick={() => buyDirect(p)}
                     disabled={!canBuy}
-                    className={`w-full py-2 rounded-lg text-xs font-black transition-all active:scale-95 ${
+                    className={`mt-auto w-full py-2.5 rounded-xl text-xs font-black transition-all active:scale-95 ${
                       canBuy
-                        ? "bg-teal-50 text-teal-700 hover:bg-teal-100 border border-teal-200"
-                        : "bg-gray-50 text-gray-300 cursor-not-allowed"
+                        ? "bg-teal-600 text-white shadow-md shadow-teal-100 hover:bg-teal-700"
+                        : "bg-gray-100 text-gray-400 cursor-not-allowed"
                     }`}
                   >
-                    ÉCHANGER
+                    OBTENIR
                   </button>
                 </div>
               );

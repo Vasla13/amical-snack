@@ -111,24 +111,31 @@ export default function App() {
     });
   }, []);
 
-  // 3. DONNÉES UTILISATEUR (LOGIQUE CORRIGÉE ICI)
+  // 3. ÉCOUTE DES DONNÉES UTILISATEUR
   useEffect(() => {
     if (!user) return;
-    const unsub = onSnapshot(doc(db, "users", user.uid), (s) => {
-      if (s.exists()) {
-        const data = s.data();
-        setUserData(data);
+    const unsub = onSnapshot(
+      doc(db, "users", user.uid),
+      (s) => {
+        if (s.exists()) {
+          const data = s.data();
+          // 👇 C'EST ICI QUE JE CORRIGE : J'ajoute l'uid dans l'objet userData
+          setUserData({ ...data, uid: user.uid });
 
-        // ORDRE INVERSÉ : D'abord on vérifie le setup (mot de passe), ENSUITE le rôle
-        if (data.setup_complete === false) {
-          setView("create_password");
-        } else if (data.role === "admin") {
-          setView("admin");
-        } else {
-          setView("app");
+          // LOGIQUE DE ROUTAGE
+          if (data.setup_complete === false) {
+            setView("create_password");
+          } else if (data.role === "admin") {
+            setView("admin");
+          } else {
+            setView("app");
+          }
         }
+      },
+      (error) => {
+        console.error("Erreur accès profil :", error);
       }
-    });
+    );
     return () => unsub();
   }, [user]);
 

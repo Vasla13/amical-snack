@@ -4,7 +4,7 @@ export const SEED_PRODUCTS = [
     name: "Lay's Barbecue",
     price_cents: 160,
     category: "Snacks",
-    image: "public/produits/",
+    image: "/produits/lays-bbq.png", // ✅ Corrigé
   },
   {
     name: "Lay's Nature",
