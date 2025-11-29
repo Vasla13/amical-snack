@@ -30,7 +30,9 @@ export default function ScannerModal({ open, onClose, onScan }) {
         scannerRef.current.destroy?.();
         scannerRef.current = null;
       }
-    } catch {}
+    } catch {
+      // Ignorer
+    }
     setTorchSupported(false);
     setTorchOn(false);
   };
@@ -41,11 +43,15 @@ export default function ScannerModal({ open, onClose, onScan }) {
       if (!sc) return;
       const has = await sc.hasFlash?.();
       if (!has) return;
+
       await sc.toggleFlash?.();
+
       const isOn = await sc.isFlashOn?.();
       if (typeof isOn === "boolean") setTorchOn(isOn);
       else setTorchOn((v) => !v);
-    } catch {}
+    } catch {
+      // Ignorer
+    }
   };
 
   useEffect(() => {

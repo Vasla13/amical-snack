@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   collection,
-  addDoc, // ✅ AJOUTÉ
+  addDoc,
   onSnapshot,
   doc,
   updateDoc,
@@ -12,19 +12,11 @@ import {
   serverTimestamp,
   getDoc,
 } from "firebase/firestore";
-import {
-  Camera,
-  Clock,
-  LogOut,
-  Package,
-  History,
-  Banknote,
-  Gift, // Ajout
-} from "lucide-react";
+import { Camera, LogOut, Package, History, Banknote, Gift } from "lucide-react";
 
 import ScannerModal from "./components/ScannerModal.jsx";
 import TicketBon from "./components/TicketBon.jsx";
-import { isExpired, getCreatedMs, methodLabel } from "./utils/orders.js";
+import { isExpired, getCreatedMs } from "./utils/orders.js";
 
 import { SEED_PRODUCTS } from "../../data/seedProducts.js";
 import { formatPrice } from "../../lib/format.js";
@@ -63,7 +55,6 @@ export default function AdminDashboard({ db, products, onLogout }) {
   // Expire function
   const expireOrdersNow = async () => {
     const list = ordersRef.current || [];
-    // On n'expire pas les rewards
     const toExpire = list.filter(
       (o) =>
         o.status !== "reward_pending" &&
@@ -83,7 +74,7 @@ export default function AdminDashboard({ db, products, onLogout }) {
     expireOrdersNow();
     const i = setInterval(expireOrdersNow, 30_000);
     return () => clearInterval(i);
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [db]);
 
   const fmtTime = (o) => {
@@ -102,9 +93,7 @@ export default function AdminDashboard({ db, products, onLogout }) {
 
     const order = (ordersRef.current || []).find((o) => {
       const same = String(o.qr_token || "").toUpperCase() === token;
-      // Accepter "created" OU "reward_pending"
       const okStatus = ["created", "reward_pending"].includes(o.status);
-      // Les rewards n'expirent pas, les autres si
       const notExpired =
         o.status === "reward_pending" ? true : !isExpired(o, ORDER_TTL_MS);
       return same && okStatus && notExpired;
@@ -155,12 +144,6 @@ export default function AdminDashboard({ db, products, onLogout }) {
     await updateDoc(doc(db, "products", p.id), {
       is_available: !p.is_available,
     });
-  };
-
-  const setStockQty = async (p, qty) => {
-    const n = qty === "" ? null : Number(qty);
-    if (n !== null && (!Number.isFinite(n) || n < 0)) return;
-    await updateDoc(doc(db, "products", p.id), { stock_qty: n });
   };
 
   const activeOrders = useMemo(() => {
