@@ -5,10 +5,8 @@ import {
   onSnapshot,
   doc,
   updateDoc,
-  orderBy,
   serverTimestamp,
   setDoc,
-  query,
 } from "firebase/firestore";
 import { signInAnonymously, onAuthStateChanged } from "firebase/auth";
 import { ShoppingBag, CreditCard, QrCode, User, RefreshCw } from "lucide-react";
@@ -43,7 +41,7 @@ export default function App() {
     });
   }, []);
 
-  // User doc listener (✅ avec gestion "déconnecté" si pas d'email)
+  // User doc listener (déconnecté si pas d'email)
   useEffect(() => {
     if (!user) return;
 
@@ -57,7 +55,6 @@ export default function App() {
       const data = s.data();
       setUserData(data);
 
-      // ✅ Si pas d'email => on considère l'utilisateur "déconnecté" côté app
       if (!data.email) {
         setView("login");
         return;
@@ -101,28 +98,30 @@ export default function App() {
     );
   };
 
-  // ✅ NOUVEAU : "déconnexion" applicative (sans reload, sans reconnexion auto)
+  // ✅ Déconnexion (utilisateur + admin)
   const handleLogout = async () => {
     if (!user) return;
 
-    // reset UI
     setCart([]);
     setCurrentOrder(null);
     setTab("catalog");
 
-    // on "efface" l'identité applicative (mais l'anonymous session reste)
     await setDoc(
       doc(db, "users", user.uid),
       { email: null, role: null, displayName: null },
       { merge: true }
     );
 
-    // l'écoute Firestore basculera sur login, mais on le force aussi
     setView("login");
   };
 
   const createOrder = async () => {
     if (!cart.length) return;
+
+    // Sécurité : refuse un panier contenant un produit en rupture
+    const outOfStock = cart.find((i) => i.is_available === false);
+    if (outOfStock) return alert(`Produit en rupture: ${outOfStock.name}`);
+
     const total = cart.reduce((s, i) => s + i.price_cents * i.qty, 0);
     const orderData = {
       user_id: user.uid,
@@ -132,6 +131,7 @@ export default function App() {
       qr_token: generateToken(),
       created_at: serverTimestamp(),
     };
+
     const ref = await addDoc(collection(db, "orders"), orderData);
     setCurrentOrder({ id: ref.id, ...orderData });
     setCart([]);
@@ -140,10 +140,12 @@ export default function App() {
 
   const payOrder = async () => {
     if (!currentOrder) return;
+
     await updateDoc(doc(db, "orders", currentOrder.id), {
       status: "paid",
       paid_at: serverTimestamp(),
     });
+
     const newPoints = (userData?.points || 0) + 1;
     await updateDoc(doc(db, "users", user.uid), { points: newPoints });
   };
@@ -157,7 +159,11 @@ export default function App() {
   }
 
   if (view === "login") return <LoginScreen onLogin={handleLogin} />;
-  if (view === "admin") return <AdminDashboard db={db} products={products} />;
+
+  if (view === "admin")
+    return (
+      <AdminDashboard db={db} products={products} onLogout={handleLogout} />
+    );
 
   return (
     <div className="h-screen flex flex-col bg-gray-50 max-w-md mx-auto relative font-sans text-gray-800">
@@ -169,12 +175,6 @@ export default function App() {
             className="w-10 h-10 object-contain"
             onError={(e) => (e.target.style.display = "none")}
           />
-          <div
-            className="w-10 h-10 bg-teal-700 rounded-full flex items-center justify-center text-white font-bold hidden"
-            id="logo-fallback"
-          >
-            RT
-          </div>
           <div>
             <h1 className="font-black text-lg text-teal-800 leading-none">
               AMICALE R&amp;T
