@@ -1,16 +1,49 @@
-# React + Vite
+# AMICALE R&T – Snack & Fidélité
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Application React/Vite pour gérer les snacks de l’amicale : catalogue, panier/Pass, système de points avec “case opening”, et back-office admin. Le projet repose sur Firebase (Auth + Firestore) et Tailwind.
 
-Currently, two official plugins are available:
+## Fonctionnalités principales
+- Authentification par email (Firebase Auth) et gestion du profil.
+- Catalogue et panier, passage en caisse (points gagnés en fonction du montant).
+- Pass / commandes avec QR code (générés côté client).
+- Fidélité : boutique de récompenses + “Case Opening” (roulette animée) débitant les points via transactions Firestore.
+- Admin : suivi des commandes, historique, gestion du stock (toggle disponibilité), seed produits.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## Démarrage rapide
+1) Prérequis : Node.js 18+ et npm.
+2) Installer les dépendances : `npm install`
+3) Lancer en dev : `npm run dev` (http://localhost:5173 par défaut)
+4) Lancer un lint : `npm run lint`
+5) Build production : `npm run build` (puis `npm run preview` pour tester le build)
 
-## React Compiler
+## Configuration Firebase
+Le projet charge la config depuis `src/config/firebase.js` (valeurs déjà présentes pour l’environnement déployé). Pour pointer vers un autre projet Firebase, remplace les champs `firebaseConfig` ou injecte tes propres variables et importe-les ici.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Structure rapide
+- `src/App.jsx` : routing, modales (confirm/toast), récupération des produits, protection des routes.
+- `src/features/` :
+  - `catalog`, `cart`, `order/PassScreen`, `profile` : parcours utilisateur.
+  - `loyalty/` : `LoyaltyScreen`, `PointsShop`, `RouletteGame`.
+  - `admin/` : `AdminDashboard` + onglets commandes/historique/stock.
+- `src/context/AuthContext.jsx` : session utilisateur et données associées.
+- `src/lib/token.js` : génération de tokens pour QR.
+- `src/config/firebase.js` : initialisation Firebase.
 
-## Expanding the ESLint configuration
+## Scripts npm
+- `npm run dev` : serveur de développement Vite.
+- `npm run build` : build production.
+- `npm run preview` : prévisualisation du build.
+- `npm run lint` : eslint.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Notes d’implémentation
+- Les débits de points (boutique et case opening) sont réalisés via `runTransaction` Firestore pour éviter les doubles clics/conflits.
+- Le “Case Opening” construit une bande d’items avec un index gagnant fixe pour caler l’animation CSS (keyframe `roulette-spin`).
+- Les points sont normalisés (prise en charge des formats “29,50” ou numériques) avant écriture.
+
+## Déploiement
+- Build : `npm run build`
+- L’application est conçue pour Firebase Hosting (voir `firebase.json` et `.firebaserc`).
+
+## Support/maintenance
+- Stack : React 19, Vite 6, Tailwind, Firebase v12, react-router 7, lucide-react.
+- Vérifie les clés Firebase et les règles Firestore avant de mettre en prod.
