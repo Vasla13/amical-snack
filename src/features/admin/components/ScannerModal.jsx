@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Camera, X, Flashlight } from "lucide-react";
 import QrScanner from "qr-scanner";
+// Import du worker nécessaire pour les performances (vite syntax)
 import qrWorkerUrl from "qr-scanner/qr-scanner-worker.min.js?url";
 
 QrScanner.WORKER_PATH = qrWorkerUrl;
@@ -13,6 +14,7 @@ export default function ScannerModal({ open, onClose, onScan }) {
   const [torchSupported, setTorchSupported] = useState(false);
   const [torchOn, setTorchOn] = useState(false);
 
+  // Nettoie le token scanné (retire les URL, espaces, etc.)
   const normalizeToken = (raw) => {
     if (!raw) return "";
     const s = String(raw).trim();
@@ -23,169 +25,175 @@ export default function ScannerModal({ open, onClose, onScan }) {
     return s.toUpperCase();
   };
 
-  const stop = async () => {
-    try {
-      if (scannerRef.current) {
+  // Arrêt propre du scanner
+  const stopScanner = () => {
+    if (scannerRef.current) {
+      try {
         scannerRef.current.stop();
-        scannerRef.current.destroy?.();
-        scannerRef.current = null;
+        scannerRef.current.destroy();
+      } catch (e) {
+        console.warn("Erreur arrêt scanner:", e);
       }
-    } catch {
-      // Ignorer
+      scannerRef.current = null;
     }
     setTorchSupported(false);
     setTorchOn(false);
   };
 
   const toggleTorch = async () => {
+    const sc = scannerRef.current;
+    if (!sc) return;
     try {
-      const sc = scannerRef.current;
-      if (!sc) return;
-      const has = await sc.hasFlash?.();
-      if (!has) return;
-
-      await sc.toggleFlash?.();
-
-      const isOn = await sc.isFlashOn?.();
-      if (typeof isOn === "boolean") setTorchOn(isOn);
-      else setTorchOn((v) => !v);
-    } catch {
-      // Ignorer
+      await sc.toggleFlash();
+      const isOn = await sc.isFlashOn();
+      setTorchOn(isOn);
+    } catch (e) {
+      console.warn("Erreur torch:", e);
     }
   };
 
   useEffect(() => {
+    // Si la modale n'est pas ouverte, on s'assure que tout est éteint
     if (!open) {
-      stop();
-      setError("");
+      stopScanner();
       return;
     }
 
-    (async () => {
+    let isMounted = true;
+
+    const startScanner = async () => {
       setError("");
 
       if (!window.isSecureContext) {
-        setError("Caméra bloquée : il faut HTTPS sur mobile (sauf localhost).");
+        if (isMounted)
+          setError("Caméra bloquée : HTTPS requis (sauf localhost).");
         return;
       }
 
+      // Petit délai pour laisser le temps au DOM (video) d'apparaître
+      await new Promise((r) => setTimeout(r, 50));
+
+      if (!videoRef.current) return;
+
       try {
-        const video = videoRef.current;
-        if (!video) return;
+        // Sécurité : on arrête l'ancien avant d'en créer un nouveau
+        stopScanner();
 
         const scanner = new QrScanner(
-          video,
+          videoRef.current,
           (result) => {
+            if (!isMounted) return;
             const raw = typeof result === "string" ? result : result?.data;
             const token = normalizeToken(raw);
             if (token) {
               onScan(token);
-              onClose();
+              onClose(); // On ferme automatiquement après un succès
             }
           },
           {
-            preferredCamera: "environment",
+            preferredCamera: "environment", // Caméra arrière
             highlightScanRegion: true,
             highlightCodeOutline: true,
-            maxScansPerSecond: 8,
+            maxScansPerSecond: 5, // Suffisant et économise la batterie
           }
         );
 
         scannerRef.current = scanner;
         await scanner.start();
 
-        try {
-          const has = await scanner.hasFlash?.();
-          setTorchSupported(!!has);
-          if (has) {
-            const isOn = await scanner.isFlashOn?.();
-            if (typeof isOn === "boolean") setTorchOn(isOn);
+        if (isMounted) {
+          try {
+            const has = await scanner.hasFlash();
+            setTorchSupported(!!has);
+          } catch {
+            setTorchSupported(false);
           }
-        } catch {
-          setTorchSupported(false);
         }
-      } catch {
-        setError(
-          "Impossible de lancer la caméra. Autorise la caméra et vérifie HTTPS."
-        );
+      } catch (err) {
+        console.error(err);
+        if (isMounted) {
+          setError(
+            "Impossible d'accéder à la caméra. Vérifie les permissions."
+          );
+        }
       }
-    })();
+    };
 
-    return () => stop();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+    startScanner();
+
+    // Cleanup lors du démontage ou fermeture
+    return () => {
+      isMounted = false;
+      stopScanner();
+    };
+  }, [open, onClose, onScan]);
 
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center bg-black/60 p-3">
-      <div className="w-full sm:max-w-md bg-white rounded-2xl overflow-hidden shadow-2xl">
-        <div className="flex items-center justify-between p-3 border-b">
-          <div className="font-black text-gray-800 flex items-center gap-2">
-            <Camera size={18} className="text-teal-700" />
+    <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+      <div className="w-full sm:max-w-md bg-white rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+        {/* En-tête */}
+        <div className="flex items-center justify-between p-4 border-b bg-white z-10">
+          <div className="font-black text-gray-800 flex items-center gap-2 text-lg">
+            <Camera className="text-teal-700" />
             Scanner QR
           </div>
           <button
-            onClick={async () => {
-              await stop();
-              onClose();
-            }}
-            className="p-2 rounded-xl hover:bg-gray-100"
+            onClick={onClose}
+            className="p-2 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors"
             aria-label="Fermer"
           >
-            <X />
+            <X size={20} />
           </button>
         </div>
 
-        <div className="p-3">
-          <div className="relative rounded-2xl overflow-hidden bg-black">
-            <video
-              ref={videoRef}
-              className="w-full h-[340px] object-cover"
-              muted
-              playsInline
-            />
+        {/* Zone Vidéo */}
+        <div className="relative bg-black flex-1 min-h-[300px] flex flex-col">
+          <video
+            ref={videoRef}
+            className="w-full h-full object-cover absolute inset-0"
+            muted
+            playsInline
+          />
 
-            <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-              <div className="w-56 h-56 rounded-2xl border-2 border-white/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.25)]" />
+          {/* Overlay Viseur */}
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <div className="w-64 h-64 border-2 border-white/40 rounded-3xl relative shadow-[0_0_0_9999px_rgba(0,0,0,0.5)]">
+              {/* Coins du viseur */}
+              <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-teal-500 -mt-1 -ml-1 rounded-tl-xl" />
+              <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-teal-500 -mt-1 -mr-1 rounded-tr-xl" />
+              <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-teal-500 -mb-1 -ml-1 rounded-bl-xl" />
+              <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-teal-500 -mb-1 -mr-1 rounded-br-xl" />
             </div>
-
-            {torchSupported && (
-              <button
-                onClick={toggleTorch}
-                className={`absolute top-3 right-3 px-3 py-2 rounded-xl text-xs font-black flex items-center gap-2 shadow-lg ${
-                  torchOn
-                    ? "bg-yellow-400 text-black"
-                    : "bg-white text-gray-900"
-                }`}
-              >
-                <Flashlight size={16} />
-                {torchOn ? "FLASH ON" : "FLASH"}
-              </button>
-            )}
           </div>
 
+          {/* Bouton Flash */}
+          {torchSupported && (
+            <button
+              onClick={toggleTorch}
+              className={`absolute bottom-6 right-6 p-4 rounded-full shadow-lg transition-transform active:scale-90 ${
+                torchOn
+                  ? "bg-yellow-400 text-black"
+                  : "bg-white/10 text-white backdrop-blur-md border border-white/20"
+              }`}
+            >
+              <Flashlight size={24} fill={torchOn ? "currentColor" : "none"} />
+            </button>
+          )}
+        </div>
+
+        {/* Pied de page / Erreurs */}
+        <div className="p-4 bg-white">
           {error ? (
-            <div className="mt-3 text-sm text-red-600 font-bold bg-red-50 border border-red-100 p-3 rounded-xl">
-              {error}
+            <div className="text-sm text-red-600 font-bold bg-red-50 border border-red-100 p-3 rounded-xl flex items-center gap-3">
+              <span className="text-xl">⚠️</span> {error}
             </div>
           ) : (
-            <div className="mt-3 text-xs text-gray-500">
-              Pointe le QR du client. Le code sera rempli automatiquement.
+            <div className="text-center text-gray-500 text-sm font-medium">
+              Place le QR Code client dans le cadre.
             </div>
           )}
-
-          <div className="mt-3 flex gap-2">
-            <button
-              onClick={async () => {
-                await stop();
-                onClose();
-              }}
-              className="flex-1 bg-white border border-gray-200 py-3 rounded-xl font-black text-gray-800"
-            >
-              Fermer
-            </button>
-          </div>
         </div>
       </div>
     </div>
