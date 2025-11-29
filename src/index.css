@@ -4,16 +4,15 @@
 
 html, body { 
   height: 100%; 
-  background-color: #f8fafc; /* Fond très clair et doux (Slate-50) */
-  -webkit-font-smoothing: antialiased; /* Texte plus net sur mobile */
+  @apply bg-slate-50 dark:bg-slate-950 transition-colors duration-300;
+  -webkit-font-smoothing: antialiased; 
 }
 
 body { 
   margin: 0; 
-  overscroll-behavior-y: none; /* Empêche le rebond élastique sur iOS */
+  overscroll-behavior-y: none; 
 }
 
-/* Utilitaire pour masquer la scrollbar (pour les catégories horizontales) */
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }

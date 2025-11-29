@@ -2,19 +2,18 @@ import React from "react";
 import { ShoppingBag, ChevronRight } from "lucide-react";
 import Button from "../../ui/Button.jsx";
 import { formatPrice } from "../../lib/format.js";
-import { useCart } from "../../context/CartContext.jsx";
+import { useCart } from "../../context/CartContext.jsx"; //
 import { useNavigate } from "react-router-dom";
 
 export default function Cart({ notify }) {
-  const { cart, addToCart, removeFromCart, createOrder } = useCart();
+  const { cart, addToCart, removeFromCart, createOrder } = useCart(); //
   const navigate = useNavigate();
 
   const handleValidate = () => {
     createOrder(
       (newOrderId) => {
-        // ✅ Récupération de l'ID
         notify("Commande créée !", "success");
-        // ✅ Redirection avec l'ID en paramètre (state)
+        // C'est ici que la magie opère : on envoie l'ID à la page suivante
         navigate("/pass", { state: { openOrderId: newOrderId } });
       },
       (err) => notify(err, "error")
@@ -35,7 +34,7 @@ export default function Cart({ notify }) {
     );
 
   return (
-    <div className="p-4 flex flex-col h-full">
+    <div className="p-4 flex flex-col h-full bg-slate-50">
       <h2 className="text-xl font-black text-slate-800 mb-6 flex items-center gap-2">
         <ShoppingBag className="text-teal-600" size={24} /> Mon Panier
       </h2>
@@ -47,7 +46,6 @@ export default function Cart({ notify }) {
             className="flex justify-between items-center bg-white p-4 rounded-3xl shadow-[0_2px_15px_rgb(0,0,0,0.03)] border border-slate-100"
           >
             <div className="flex items-center gap-4">
-              {/* Image miniature */}
               <div className="w-12 h-12 bg-slate-50 rounded-xl flex items-center justify-center p-1">
                 <img
                   src={p.image}
@@ -86,7 +84,6 @@ export default function Cart({ notify }) {
         ))}
       </div>
 
-      {/* Résumé et Bouton */}
       <div className="bg-white p-6 rounded-[2rem] shadow-[0_-10px_40px_rgb(0,0,0,0.05)] border border-slate-100 mt-2">
         <div className="flex justify-between items-end mb-6">
           <span className="text-slate-400 font-bold text-sm uppercase tracking-wider">

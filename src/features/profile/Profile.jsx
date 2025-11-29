@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { collection, onSnapshot } from "firebase/firestore";
 import { updatePassword } from "firebase/auth";
-import { User, LogOut, Trophy, KeyRound, Sparkles } from "lucide-react";
+import { User, LogOut, Trophy, KeyRound, Sparkles, Medal } from "lucide-react";
 
 export default function Profile({ user, logout, db, uid, auth }) {
   const [users, setUsers] = useState([]);
@@ -9,6 +9,7 @@ export default function Profile({ user, logout, db, uid, auth }) {
   const [newPwd, setNewPwd] = useState("");
   const [msg, setMsg] = useState("");
 
+  // Récupération des utilisateurs pour le classement
   useEffect(() => {
     if (!db) return;
     return onSnapshot(collection(db, "users"), (s) => {
@@ -47,10 +48,19 @@ export default function Profile({ user, logout, db, uid, auth }) {
       .toFixed(2)
       .replace(/[.,]00$/, "");
 
+  // Définition des Badges (Logique simple basée sur les points/rôle)
+  const badges = [
+    { name: "Bienvenue", icon: "👋", unlocked: true },
+    { name: "Caféinomane", icon: "☕", unlocked: (user?.points || 0) > 20 }, // Exemple : > 20 pts
+    { name: "Gros Mangeur", icon: "🍔", unlocked: (user?.points || 0) > 50 }, // Exemple : > 50 pts
+    { name: "VIP", icon: "👑", unlocked: user?.role === "admin" },
+  ];
+
   return (
     <div className="px-4 pb-8 pt-2 space-y-6">
-      {/* CARTE FIDÉLITÉ (Look Carte Bancaire) */}
+      {/* 1. CARTE FIDÉLITÉ (Look Carte Bancaire Premium) */}
       <div className="relative overflow-hidden bg-slate-900 rounded-[2rem] p-6 text-white shadow-xl shadow-slate-900/20">
+        {/* Effets de fond */}
         <div className="absolute top-0 right-0 w-64 h-64 bg-teal-500 rounded-full mix-blend-overlay filter blur-3xl opacity-20 -mr-16 -mt-16"></div>
         <div className="absolute bottom-0 left-0 w-64 h-64 bg-purple-500 rounded-full mix-blend-overlay filter blur-3xl opacity-20 -ml-16 -mb-16"></div>
 
@@ -86,14 +96,44 @@ export default function Profile({ user, logout, db, uid, auth }) {
         </div>
       </div>
 
-      {/* CLASSEMENT */}
-      <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
+      {/* 2. BADGES & SUCCÈS */}
+      <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800">
+        <h3 className="font-black text-lg text-slate-800 dark:text-white flex items-center gap-2 mb-4">
+          <Medal className="text-purple-500" size={20} /> Mes Succès
+        </h3>
+        <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
+          {badges.map((badge) => (
+            <div
+              key={badge.name}
+              className={`flex flex-col items-center min-w-[70px] transition-all ${
+                badge.unlocked ? "" : "opacity-40 grayscale"
+              }`}
+            >
+              <div
+                className={`w-12 h-12 rounded-full flex items-center justify-center text-2xl mb-2 border ${
+                  badge.unlocked
+                    ? "bg-purple-50 border-purple-100 dark:bg-slate-800 dark:border-slate-700"
+                    : "bg-slate-100 border-slate-200"
+                }`}
+              >
+                {badge.icon}
+              </div>
+              <span className="text-[10px] font-bold text-center text-slate-600 dark:text-slate-400 leading-tight">
+                {badge.name}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* 3. CLASSEMENT (LEADERBOARD) */}
+      <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="font-black text-lg text-slate-800 flex items-center gap-2">
+          <h3 className="font-black text-lg text-slate-800 dark:text-white flex items-center gap-2">
             <Trophy className="text-yellow-500 fill-yellow-500" size={18} />
             Leaderboard
           </h3>
-          <span className="text-[10px] font-bold bg-slate-100 text-slate-500 px-2 py-1 rounded-lg uppercase tracking-wider">
+          <span className="text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-2 py-1 rounded-lg uppercase tracking-wider">
             Top 10
           </span>
         </div>
@@ -101,20 +141,25 @@ export default function Profile({ user, logout, db, uid, auth }) {
         <div className="space-y-3">
           {top10.map((u, i) => {
             const isMe = uid === u.id;
-            let rankClass = "bg-slate-100 text-slate-500";
+            let rankClass =
+              "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400";
             if (i === 0)
               rankClass =
-                "bg-yellow-100 text-yellow-700 ring-1 ring-yellow-200";
-            if (i === 1) rankClass = "bg-slate-200 text-slate-700";
+                "bg-yellow-100 text-yellow-700 ring-1 ring-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400 dark:ring-yellow-900";
+            if (i === 1)
+              rankClass =
+                "bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300";
             if (i === 2)
               rankClass =
-                "bg-orange-100 text-orange-800 ring-1 ring-orange-200";
+                "bg-orange-100 text-orange-800 ring-1 ring-orange-200 dark:bg-orange-900/30 dark:text-orange-400 dark:ring-orange-900";
 
             return (
               <div
                 key={u.id}
                 className={`flex items-center justify-between p-2.5 rounded-2xl transition-all ${
-                  isMe ? "bg-teal-50 ring-1 ring-teal-200" : ""
+                  isMe
+                    ? "bg-teal-50 ring-1 ring-teal-200 dark:bg-teal-900/20 dark:ring-teal-800"
+                    : ""
                 }`}
               >
                 <div className="flex items-center gap-3">
@@ -125,13 +170,15 @@ export default function Profile({ user, logout, db, uid, auth }) {
                   </div>
                   <div
                     className={`text-sm font-bold ${
-                      isMe ? "text-teal-900" : "text-slate-700"
+                      isMe
+                        ? "text-teal-900 dark:text-teal-400"
+                        : "text-slate-700 dark:text-slate-300"
                     }`}
                   >
                     {u.name} {isMe && "(Moi)"}
                   </div>
                 </div>
-                <div className="font-black text-slate-900 text-sm">
+                <div className="font-black text-slate-900 dark:text-white text-sm">
                   {fmtPoints(u.points)}{" "}
                   <span className="text-[10px] text-slate-400 font-bold uppercase">
                     pts
@@ -143,24 +190,24 @@ export default function Profile({ user, logout, db, uid, auth }) {
         </div>
       </div>
 
-      {/* PARAMÈTRES */}
-      <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
+      {/* 4. PARAMÈTRES (Mot de passe) */}
+      <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800">
         <button
           onClick={() => setShowPwd(!showPwd)}
-          className="w-full flex items-center justify-between text-sm font-bold text-slate-600 hover:text-teal-600 transition-colors"
+          className="w-full flex items-center justify-between text-sm font-bold text-slate-600 dark:text-slate-300 hover:text-teal-600 dark:hover:text-teal-400 transition-colors"
         >
           <span className="flex items-center gap-2">
             <KeyRound size={18} /> Changer mot de passe
           </span>
-          <span className="text-[10px] bg-slate-100 px-2 py-1 rounded text-slate-400">
+          <span className="text-[10px] bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded text-slate-400">
             {showPwd ? "Fermer" : "Modifier"}
           </span>
         </button>
 
         {showPwd && (
-          <div className="mt-4 pt-4 border-t border-slate-100 animate-in slide-in-from-top-2">
+          <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 animate-in slide-in-from-top-2">
             {msg ? (
-              <p className="text-emerald-600 text-xs font-bold bg-emerald-50 p-3 rounded-xl text-center">
+              <p className="text-emerald-600 dark:text-emerald-400 text-xs font-bold bg-emerald-50 dark:bg-emerald-900/20 p-3 rounded-xl text-center">
                 {msg}
               </p>
             ) : (
@@ -168,13 +215,13 @@ export default function Profile({ user, logout, db, uid, auth }) {
                 <input
                   type="password"
                   placeholder="Nouveau mot de passe"
-                  className="flex-1 p-3 text-sm bg-slate-50 border-transparent focus:bg-white focus:border-teal-500 border rounded-xl outline-none transition-all font-bold"
+                  className="flex-1 p-3 text-sm bg-slate-50 dark:bg-slate-800 border-transparent focus:bg-white dark:focus:bg-slate-900 focus:border-teal-500 border rounded-xl outline-none transition-all font-bold dark:text-white placeholder:text-slate-400"
                   value={newPwd}
                   onChange={(e) => setNewPwd(e.target.value)}
                 />
                 <button
                   onClick={changePassword}
-                  className="bg-slate-900 text-white text-xs font-bold px-4 rounded-xl active:scale-95 transition-transform"
+                  className="bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-xs font-bold px-4 rounded-xl active:scale-95 transition-transform"
                 >
                   OK
                 </button>
@@ -184,9 +231,10 @@ export default function Profile({ user, logout, db, uid, auth }) {
         )}
       </div>
 
+      {/* 5. DÉCONNEXION */}
       <button
         onClick={logout}
-        className="w-full py-4 text-red-500 font-bold bg-red-50 border border-red-100 hover:bg-red-100 rounded-2xl flex items-center justify-center gap-2 transition-colors active:scale-95"
+        className="w-full py-4 text-rose-500 font-bold bg-rose-50 dark:bg-rose-900/20 border border-rose-100 dark:border-rose-900/30 hover:bg-rose-100 dark:hover:bg-rose-900/30 rounded-2xl flex items-center justify-center gap-2 transition-colors active:scale-95"
       >
         <LogOut size={18} /> Se déconnecter
       </button>

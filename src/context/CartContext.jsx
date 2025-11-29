@@ -12,8 +12,9 @@ export function useCart() {
 
 export function CartProvider({ children }) {
   const [cart, setCart] = useState([]);
-  const { userData: user } = useAuth();
+  const { userData: user } = useAuth(); // On récupère userData pour l'ID
 
+  // Ajouter un produit
   const addToCart = (product) => {
     if (product.is_available === false) return;
     setCart((prev) => {
@@ -27,6 +28,7 @@ export function CartProvider({ children }) {
     });
   };
 
+  // Retirer/Diminuer un produit
   const removeFromCart = (productId) => {
     setCart((prev) =>
       prev
@@ -35,9 +37,11 @@ export function CartProvider({ children }) {
     );
   };
 
+  // Créer la commande (Valider le panier)
   const createOrder = async (onSuccess, onError) => {
     if (!cart.length || !user?.uid) return;
 
+    // Vérif stock (sécurité simple côté client)
     const outOfStock = cart.find((i) => i.is_available === false);
     if (outOfStock) {
       if (onError) onError(`Rupture : ${outOfStock.name}`);
@@ -47,7 +51,7 @@ export function CartProvider({ children }) {
     try {
       const total = cart.reduce((s, i) => s + i.price_cents * i.qty, 0);
 
-      // Création de la commande
+      // On capture la référence du document créé
       const docRef = await addDoc(collection(db, "orders"), {
         user_id: user.uid,
         items: cart,
@@ -60,7 +64,7 @@ export function CartProvider({ children }) {
 
       setCart([]); // Vider le panier
 
-      // ✅ CHANGEMENT ICI : On passe l'ID de la commande créée au callback
+      // On passe l'ID du document au callback de succès
       if (onSuccess) onSuccess(docRef.id);
     } catch (e) {
       console.error(e);
@@ -79,7 +83,7 @@ export function CartProvider({ children }) {
     removeFromCart,
     createOrder,
     totalItems,
-    setCart,
+    setCart, // Au cas où on veut reset manuellement
   };
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;

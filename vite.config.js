@@ -1,36 +1,36 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import { VitePWA } from "vite-plugin-pwa";
 
-// https://vite.dev/config/
 export default defineConfig({
-  plugins: [react()],
-  build: {
-    // On augmente un peu la limite d'avertissement (optionnel, pour éviter le spam)
-    chunkSizeWarningLimit: 1000,
-    rollupOptions: {
-      output: {
-        manualChunks: (id) => {
-          // 1. On isole Firebase (c'est souvent le plus lourd)
-          if (id.includes("node_modules/firebase")) {
-            return "firebase";
-          }
-          // 2. On isole React et React-DOM (le moteur du site)
-          if (
-            id.includes("node_modules/react") ||
-            id.includes("node_modules/react-dom")
-          ) {
-            return "react-vendor";
-          }
-          // 3. On isole les outils QR Code (Scanner + Générateur)
-          if (
-            id.includes("node_modules/qr-scanner") ||
-            id.includes("node_modules/qrcode.react")
-          ) {
-            return "qr-tools";
-          }
-          // 4. Le reste (Lucide, etc.) ira dans un fichier vendor commun ou avec le code principal
-        },
+  plugins: [
+    react(),
+    VitePWA({
+      registerType: "autoUpdate",
+      includeAssets: ["favicon.ico", "apple-touch-icon.png", "logo.png"],
+      manifest: {
+        name: "Amicale R&T",
+        short_name: "Amicale",
+        description: "Snack et Fidélité R&T Colmar",
+        theme_color: "#0f172a",
+        background_color: "#0f172a",
+        display: "standalone",
+        icons: [
+          {
+            src: "/logo.png",
+            sizes: "192x192",
+            type: "image/png",
+          },
+          {
+            src: "/logo.png",
+            sizes: "512x512",
+            type: "image/png",
+          },
+        ],
       },
-    },
+    }),
+  ],
+  build: {
+    chunkSizeWarningLimit: 1000,
   },
 });
