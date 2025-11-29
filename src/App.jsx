@@ -31,13 +31,15 @@ import { generateToken } from "./lib/token.js";
 
 import Catalog from "./features/catalog/Catalog.jsx";
 import Cart from "./features/cart/Cart.jsx";
-import OrderFlow from "./features/order/OrderFlow.jsx";
+import PassScreen from "./features/order/PassScreen.jsx"; // ✅ NOUVEAU
 import Profile from "./features/profile/Profile.jsx";
 import AdminDashboard from "./features/admin/AdminDashboard.jsx";
 import LoginScreen from "./features/auth/LoginScreen.jsx";
 import LoyaltyScreen from "./features/loyalty/LoyaltyScreen.jsx";
 import NavBtn from "./ui/NavBtn.jsx";
 import Button from "./ui/Button.jsx";
+import Toast from "./ui/Toast.jsx"; // ✅ NOUVEAU
+import Modal from "./ui/Modal.jsx"; // ✅ NOUVEAU
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -46,7 +48,12 @@ export default function App() {
   const [products, setProducts] = useState([]);
   const [cart, setCart] = useState([]);
   const [tab, setTab] = useState("catalog");
-  const [currentOrder, setCurrentOrder] = useState(null);
+
+  // UI States
+  const [toast, setToast] = useState(null); // { msg: "...", type: "success" }
+  const [modal, setModal] = useState(null); // { title: "...", text: "...", onOk: fn }
+  const [emailPrompt, setEmailPrompt] = useState(false); // Pour le retour lien magique
+  const [emailInput, setEmailInput] = useState("");
 
   const [newPassword, setNewPassword] = useState("");
   const [pwdLoading, setPwdLoading] = useState(false);
@@ -56,28 +63,34 @@ export default function App() {
     userDataRef.current = userData;
   }, [userData]);
 
+  // Helpers UI
+  const notify = (msg, type = "info") => setToast({ msg, type });
+  const confirmAction = (opts) => setModal(opts); // { title, text, confirmText, cancelText, onOk }
+
   // 1. RETOUR MAIL
   useEffect(() => {
     if (isSignInWithEmailLink(auth, window.location.href)) {
       let email = window.localStorage.getItem("emailForSignIn");
       if (!email) {
-        email = window.prompt(
-          "Confirme ton email pour finaliser la connexion :"
-        );
-      }
-      if (email) {
-        signInWithEmailLink(auth, email, window.location.href)
-          .then(() => {
-            window.localStorage.removeItem("emailForSignIn");
-            window.history.replaceState({}, document.title, "/");
-          })
-          .catch(() => {
-            alert("Lien invalide ou expiré.");
-            setView("login");
-          });
+        setEmailPrompt(true); // Affiche l'input au lieu du prompt natif
+      } else {
+        finishSignIn(email);
       }
     }
   }, []);
+
+  const finishSignIn = (email) => {
+    signInWithEmailLink(auth, email, window.location.href)
+      .then(() => {
+        window.localStorage.removeItem("emailForSignIn");
+        window.history.replaceState({}, document.title, "/");
+        setEmailPrompt(false);
+      })
+      .catch(() => {
+        notify("Lien invalide ou expiré.", "error");
+        setView("login");
+      });
+  };
 
   // 2. AUTH STATE
   useEffect(() => {
@@ -111,62 +124,38 @@ export default function App() {
     });
   }, []);
 
-  // 3. ÉCOUTE DES DONNÉES UTILISATEUR
+  // 3. USER DATA
   useEffect(() => {
     if (!user) return;
-    const unsub = onSnapshot(
-      doc(db, "users", user.uid),
-      (s) => {
-        if (s.exists()) {
-          const data = s.data();
-          // 👇 C'EST ICI QUE JE CORRIGE : J'ajoute l'uid dans l'objet userData
-          setUserData({ ...data, uid: user.uid });
-
-          // LOGIQUE DE ROUTAGE
-          if (data.setup_complete === false) {
-            setView("create_password");
-          } else if (data.role === "admin") {
-            setView("admin");
-          } else {
-            setView("app");
-          }
-        }
-      },
-      (error) => {
-        console.error("Erreur accès profil :", error);
+    const unsub = onSnapshot(doc(db, "users", user.uid), (s) => {
+      if (s.exists()) {
+        const data = s.data();
+        setUserData({ ...data, uid: user.uid });
+        if (data.setup_complete === false) setView("create_password");
+        else if (data.role === "admin") setView("admin");
+        else setView("app");
       }
-    );
+    });
     return () => unsub();
   }, [user]);
 
-  // CATALOGUE
+  // CATALOG
   useEffect(() => {
     if (!user) return;
-    return onSnapshot(collection(db, "products"), (s) => {
-      setProducts(s.docs.map((d) => ({ id: d.id, ...d.data() })));
-    });
+    return onSnapshot(collection(db, "products"), (s) =>
+      setProducts(s.docs.map((d) => ({ id: d.id, ...d.data() })))
+    );
   }, [user]);
-
-  // COMMANDE
-  useEffect(() => {
-    if (!currentOrder?.id) return;
-    const unsub = onSnapshot(doc(db, "orders", currentOrder.id), (d) => {
-      if (d.exists()) setCurrentOrder({ id: d.id, ...d.data() });
-    });
-    return () => unsub();
-  }, [currentOrder?.id]);
 
   const handleCreatePassword = async () => {
-    if (newPassword.length < 6) return alert("6 caractères min !");
+    if (newPassword.length < 6) return notify("6 caractères min !", "error");
     setPwdLoading(true);
     try {
       await updatePassword(user, newPassword);
       await updateDoc(doc(db, "users", user.uid), { setup_complete: true });
-      alert(
-        "Mot de passe créé ! Tu pourras utiliser 'Connexion Classique' la prochaine fois."
-      );
+      notify("Compte finalisé ! Bienvenue.", "success");
     } catch (e) {
-      alert("Erreur: " + e.message);
+      notify(e.message, "error");
     } finally {
       setPwdLoading(false);
     }
@@ -175,13 +164,15 @@ export default function App() {
   const handleLogout = async () => {
     await auth.signOut();
     setCart([]);
-    setCurrentOrder(null);
     setTab("catalog");
     setView("login");
   };
 
   const createOrder = async () => {
     if (!cart.length) return;
+    const outOfStock = cart.find((i) => i.is_available === false);
+    if (outOfStock) return notify(`Rupture : ${outOfStock.name}`, "error");
+
     const total = cart.reduce((s, i) => s + i.price_cents * i.qty, 0);
     const orderData = {
       user_id: user.uid,
@@ -192,23 +183,22 @@ export default function App() {
       created_at: serverTimestamp(),
       payment_method: null,
     };
-    const ref = await addDoc(collection(db, "orders"), orderData);
-    setCurrentOrder({ id: ref.id, ...orderData });
+    await addDoc(collection(db, "orders"), orderData);
     setCart([]);
-    setTab("order");
+    setTab("pass"); // Redirection vers le Pass
+    notify("Commande créée !", "success");
   };
 
-  const payOrder = async (method) => {
-    if (!currentOrder) return;
-    const totalCents = Number(currentOrder.total_cents || 0);
+  const payOrder = async (method, order) => {
+    const totalCents = Number(order.total_cents || 0);
     if (method === "paypal_balance") {
       const balance = Number(userDataRef.current?.balance_cents || 0);
-      if (balance < totalCents) return alert("Solde insuffisant.");
+      if (balance < totalCents) return notify("Solde insuffisant.", "error");
       await updateDoc(doc(db, "users", user.uid), {
         balance_cents: balance - totalCents,
       });
     }
-    await updateDoc(doc(db, "orders", currentOrder.id), {
+    await updateDoc(doc(db, "orders", order.id), {
       status: "paid",
       paid_at: serverTimestamp(),
       payment_method: method,
@@ -219,16 +209,19 @@ export default function App() {
     await updateDoc(doc(db, "users", user.uid), {
       points: prevPts + totalCents / 100,
     });
+    notify("Paiement validé !", "success");
   };
 
-  const requestCashPayment = async () => {
-    if (!currentOrder) return;
-    await updateDoc(doc(db, "orders", currentOrder.id), {
+  const requestCashPayment = async (order) => {
+    await updateDoc(doc(db, "orders", order.id), {
       status: "cash",
       cash_requested_at: serverTimestamp(),
       payment_method: "cash",
     });
+    notify("Vendeur notifié.", "info");
   };
+
+  // --- RENDU ---
 
   if (view === "loading")
     return (
@@ -238,6 +231,22 @@ export default function App() {
     );
   if (view === "login") return <LoginScreen />;
 
+  // Écran spécial : Demande email si retour lien magique sur autre appareil
+  if (emailPrompt) {
+    return (
+      <div className="h-screen flex flex-col items-center justify-center p-6 bg-white">
+        <h2 className="text-xl font-black mb-4">Confirme ton email</h2>
+        <input
+          className="border p-3 rounded-xl w-full max-w-sm mb-4"
+          placeholder="Email UHA"
+          value={emailInput}
+          onChange={(e) => setEmailInput(e.target.value)}
+        />
+        <Button onClick={() => finishSignIn(emailInput)}>VALIDER</Button>
+      </div>
+    );
+  }
+
   if (view === "create_password") {
     return (
       <div className="h-screen flex flex-col items-center justify-center p-6 bg-white font-sans text-center">
@@ -245,33 +254,34 @@ export default function App() {
           <Check size={48} />
         </div>
         <h1 className="text-2xl font-black text-gray-800 mb-2">
-          Bienvenue Admin !
+          Compte validé !
         </h1>
         <p className="text-gray-500 mb-8">
-          Dernière étape : choisis ton mot de passe administrateur pour te
-          connecter simplement la prochaine fois.
+          Choisis un mot de passe pour tes prochaines connexions.
         </p>
         <div className="w-full max-w-sm space-y-4">
-          <div className="text-left">
-            <label className="text-xs font-bold text-gray-400 uppercase ml-1">
-              Mot de passe secret
-            </label>
-            <input
-              type="password"
-              className="w-full p-4 bg-gray-50 rounded-xl border focus:border-teal-500 outline-none font-bold"
-              placeholder="••••••••"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-            />
-          </div>
+          <input
+            type="password"
+            className="w-full p-4 bg-gray-50 rounded-xl border focus:border-teal-500 outline-none font-bold"
+            placeholder="Nouveau mot de passe"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+          />
           <Button
             onClick={handleCreatePassword}
             disabled={pwdLoading}
-            className="w-full shadow-lg shadow-green-100 bg-green-600 hover:bg-green-700"
+            className="w-full bg-green-600 hover:bg-green-700"
           >
-            {pwdLoading ? "Enregistrement..." : "FINALISER LE COMPTE"}
+            {pwdLoading ? "..." : "TERMINER"}
           </Button>
         </div>
+        {toast && (
+          <Toast
+            msg={toast.msg}
+            type={toast.type}
+            onClose={() => setToast(null)}
+          />
+        )}
       </div>
     );
   }
@@ -283,6 +293,28 @@ export default function App() {
 
   return (
     <div className="h-screen flex flex-col bg-gray-50 max-w-md mx-auto relative font-sans text-gray-800">
+      {/* Toast & Modal globaux */}
+      {toast && (
+        <Toast
+          msg={toast.msg}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
+      <Modal
+        isOpen={!!modal}
+        title={modal?.title}
+        onConfirm={() => {
+          modal.onOk && modal.onOk();
+          setModal(null);
+        }}
+        onCancel={() => setModal(null)}
+        confirmText={modal?.confirmText}
+        cancelText={modal?.cancelText}
+      >
+        {modal?.text}
+      </Modal>
+
       <header className="bg-white p-3 shadow-sm flex justify-between items-center z-10 sticky top-0">
         <div className="flex items-center gap-3">
           <img
@@ -307,6 +339,7 @@ export default function App() {
           </span>
         </div>
       </header>
+
       <main className="flex-1 overflow-y-auto pb-20 scroll-smooth">
         {tab === "catalog" && (
           <Catalog products={products} cart={cart} setCart={setCart} />
@@ -314,21 +347,28 @@ export default function App() {
         {tab === "cart" && (
           <Cart cart={cart} setCart={setCart} onValidate={createOrder} />
         )}
-        {tab === "order" && (
-          <OrderFlow
-            order={currentOrder}
+
+        {/* NOUVEAU PASS SCREEN (qui gère OrderFlow en interne) */}
+        {tab === "pass" && (
+          <PassScreen
             user={userData}
-            onPay={payOrder}
-            onRequestCash={requestCashPayment}
-            onClose={() => {
-              setTab("catalog");
-              setCurrentOrder(null);
-            }}
+            db={db}
+            onPay={(m) => payOrder(m, currentOrder)} // On passera l'ordre spécifique dans PassScreen
+            onRequestCash={() => requestCashPayment(currentOrder)}
           />
         )}
+
         {tab === "loyalty" && (
-          <LoyaltyScreen user={userData} products={products} db={db} />
+          <LoyaltyScreen
+            user={userData}
+            products={products}
+            db={db}
+            onGoToPass={() => setTab("pass")}
+            notify={notify}
+            onConfirm={confirmAction}
+          />
         )}
+
         {tab === "profile" && (
           <Profile
             user={userData}
@@ -339,6 +379,7 @@ export default function App() {
           />
         )}
       </main>
+
       <nav className="absolute bottom-0 w-full bg-white border-t flex justify-around p-2 pb-5 z-20 shadow-[0_-5px_15px_rgba(0,0,0,0.02)]">
         <NavBtn
           icon={ShoppingBag}
@@ -361,12 +402,9 @@ export default function App() {
         />
         <NavBtn
           icon={QrCode}
-          active={tab === "order"}
-          onClick={() =>
-            currentOrder ? setTab("order") : alert("Pas de commande")
-          }
+          active={tab === "pass"}
+          onClick={() => setTab("pass")}
           label="Pass"
-          highlight={!!currentOrder}
         />
         <NavBtn
           icon={User}
