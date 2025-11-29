@@ -1,10 +1,9 @@
 import React, { useState, useRef } from "react";
 import {
   doc,
-  updateDoc,
-  addDoc,
   collection,
   serverTimestamp,
+  writeBatch,
 } from "firebase/firestore";
 import { Gift, Dices, Sparkles, Ticket } from "lucide-react";
 import Button from "../../ui/Button.jsx";
@@ -15,16 +14,16 @@ const COST_STD = 10;
 const COST_REDBULL = 12;
 
 // --- CONFIGURATION ROULETTE PIXEL PERFECT ---
-// On définit des tailles fixes pour éviter les décalages
 const CARD_WIDTH = 128; // px
 const GAP = 8; // px
 const ITEM_FULL_WIDTH = CARD_WIDTH + GAP;
 const WINNER_INDEX = 30; // On arrête toujours au 30ème item
 const TOTAL_ITEMS = 35;
 
-// Fonction Helper pure pour le tirage
+// Fonction Helper pure pour le tirage aléatoire pondéré
 const pickRandomWeighted = (pool) => {
   if (!pool || pool.length === 0) return null;
+  // On inverse le prix pour le poids : moins c'est cher, plus c'est probable
   const itemsWithWeight = pool.map((p) => ({
     ...p,
     weight: 1000 / (Number(p.price_cents) || 100),
@@ -63,75 +62,98 @@ export default function LoyaltyScreen({
     const pool = (products || []).filter((p) => p.is_available !== false);
     if (!pool.length) return notify("Stock vide !", "error");
 
-    // 1. Déduire les points
-    await updateDoc(doc(db, "users", user.uid), {
-      points: user.points - COST_ROULETTE,
-    });
+    setSpinning(true); // Bloque le bouton immédiatement
 
-    // 2. Déterminer le gagnant à l'avance
-    const winnerItem = pickRandomWeighted(pool);
+    try {
+      // 1. Déterminer le gagnant à l'avance
+      const winnerItem = pickRandomWeighted(pool);
 
-    // 3. Construire la bande
-    const strip = [];
-    for (let i = 0; i < TOTAL_ITEMS; i++) {
-      // Le gagnant est FORCÉ à l'index WINNER_INDEX
-      if (i === WINNER_INDEX) strip.push({ ...winnerItem, isWinner: true });
-      else strip.push({ ...pickRandomWeighted(pool), isWinner: false });
-    }
-    setRouletteItems(strip);
-    setSpinning(true);
+      // 2. Préparer la transaction (Batch) pour atomicité
+      // On déduit les points ET on crée le coupon EN MÊME TEMPS avant l'animation.
+      // Si l'app plante pendant l'animation, le coupon sera déjà dans "Mon Pass".
+      const batch = writeBatch(db);
 
-    // 4. Animation
-    // Reset position à 0 sans transition
-    if (stripRef.current) {
-      stripRef.current.style.transition = "none";
-      stripRef.current.style.transform = "translateX(0px)";
-    }
+      // A. Déduction des points
+      const userRef = doc(db, "users", user.uid);
+      const newPoints = user.points - COST_ROULETTE;
+      batch.update(userRef, { points: newPoints });
 
-    // Lancer l'animation au frame suivant
-    requestAnimationFrame(() => {
+      // B. Création du coupon
+      // On génère l'ID manuellement pour pouvoir l'utiliser dans le batch
+      const couponRef = doc(collection(db, "orders"));
+      const couponData = {
+        user_id: user.uid,
+        items: [
+          { ...winnerItem, qty: 1, price_cents: 0, name: `${winnerItem.name}` },
+        ],
+        total_cents: 0,
+        status: "reward_pending",
+        payment_method: "loyalty",
+        source: "Roulette",
+        created_at: serverTimestamp(),
+        qr_token: generateToken(),
+      };
+      batch.set(couponRef, couponData);
+
+      // C. Exécution de la sauvegarde
+      await batch.commit();
+
+      // 3. Construire la bande visuelle pour l'animation
+      const strip = [];
+      for (let i = 0; i < TOTAL_ITEMS; i++) {
+        // Le gagnant est FORCÉ à l'index WINNER_INDEX
+        if (i === WINNER_INDEX) strip.push({ ...winnerItem, isWinner: true });
+        else strip.push({ ...pickRandomWeighted(pool), isWinner: false });
+      }
+      setRouletteItems(strip);
+
+      // 4. Lancer l'animation (Logique purement visuelle maintenant)
+      if (stripRef.current) {
+        stripRef.current.style.transition = "none";
+        stripRef.current.style.transform = "translateX(0px)";
+      }
+
+      // Hack pour forcer le reflow avant de lancer la transition
       requestAnimationFrame(() => {
-        if (stripRef.current && containerRef.current) {
-          const containerW = containerRef.current.clientWidth;
+        requestAnimationFrame(() => {
+          if (stripRef.current && containerRef.current) {
+            const containerW = containerRef.current.clientWidth;
+            // Centre carte gagnante = (WINNER_INDEX * ITEM_FULL_WIDTH) + (CARD_WIDTH / 2)
+            const centerTarget =
+              WINNER_INDEX * ITEM_FULL_WIDTH + CARD_WIDTH / 2;
+            const translateX = centerTarget - containerW / 2;
 
-          // MATHÉMATIQUE PRÉCISE :
-          // On veut que le centre de la carte gagnante soit au centre du conteneur.
-          // Centre carte gagnante = (WINNER_INDEX * ITEM_FULL_WIDTH) + (CARD_WIDTH / 2)
-          // Centre conteneur = containerW / 2
-          // Translation = Centre carte gagnante - Centre conteneur
+            // Petit décalage aléatoire réaliste (+/- 20px)
+            const jitter = Math.floor(Math.random() * 40) - 20;
 
-          const centerTarget = WINNER_INDEX * ITEM_FULL_WIDTH + CARD_WIDTH / 2;
-          const translateX = centerTarget - containerW / 2;
-
-          // On ajoute un tout petit random (±20px) pour l'effet "analogique"
-          // MAIS on reste dans la carte (qui fait 128px de large), donc on pointera toujours dessus.
-          const jitter = Math.floor(Math.random() * 40) - 20;
-
-          stripRef.current.style.transition =
-            "transform 5s cubic-bezier(0.15, 0.85, 0.25, 1)"; // Easing réaliste
-          stripRef.current.style.transform = `translateX(-${
-            translateX + jitter
-          }px)`;
-        }
+            stripRef.current.style.transition =
+              "transform 5s cubic-bezier(0.15, 0.85, 0.25, 1)"; // Easing réaliste
+            stripRef.current.style.transform = `translateX(-${
+              translateX + jitter
+            }px)`;
+          }
+        });
       });
-    });
 
-    // 5. Fin
-    setTimeout(async () => {
-      await createCoupon(winnerItem, "Roulette");
+      // 5. Fin de l'animation : Affichage du résultat
+      setTimeout(() => {
+        setSpinning(false);
+        onConfirm({
+          title: "C'est gagné ! 🎉",
+          text: `Tu as remporté : ${winnerItem.name}. Ton coupon est déjà sécurisé dans ton Pass.`,
+          confirmText: "Voir mon Pass",
+          cancelText: "Rejouer",
+          onOk: onGoToPass,
+        });
+      }, 5500);
+    } catch (error) {
+      console.error("Erreur roulette:", error);
       setSpinning(false);
-      // Modale personnalisée au lieu de confirm()
-      onConfirm({
-        title: "C'est gagné ! 🎉",
-        text: `Tu as remporté : ${winnerItem.name}. Ton coupon est dans ton Pass.`,
-        confirmText: "Voir mon Pass",
-        cancelText: "Rejouer",
-        onOk: onGoToPass,
-      });
-    }, 5500);
+      notify("Erreur de connexion. Réessaie.", "error");
+    }
   };
 
-  const buyDirect = (product) => {
+  const buyDirect = async (product) => {
     const isRedBull = (product.name || "").toLowerCase().includes("red bull");
     const cost = isRedBull ? COST_REDBULL : COST_STD;
 
@@ -142,32 +164,39 @@ export default function LoyaltyScreen({
       title: "Échanger des points",
       text: `Acheter ${product.name} pour ${cost} points ?`,
       onOk: async () => {
-        await updateDoc(doc(db, "users", user.uid), {
-          points: user.points - cost,
-        });
-        await createCoupon(product, "Boutique");
-        notify("Coupon ajouté au Pass !", "success");
+        try {
+          const batch = writeBatch(db);
+
+          const userRef = doc(db, "users", user.uid);
+          batch.update(userRef, { points: user.points - cost });
+
+          const couponRef = doc(collection(db, "orders"));
+          const couponData = {
+            user_id: user.uid,
+            items: [
+              { ...product, qty: 1, price_cents: 0, name: `${product.name}` },
+            ],
+            total_cents: 0,
+            status: "reward_pending",
+            payment_method: "loyalty",
+            source: "Boutique",
+            created_at: serverTimestamp(),
+            qr_token: generateToken(),
+          };
+          batch.set(couponRef, couponData);
+
+          await batch.commit();
+          notify("Coupon ajouté au Pass !", "success");
+        } catch (e) {
+          notify("Erreur lors de l'achat.", "error");
+        }
       },
     });
   };
 
-  const createCoupon = async (item, source) => {
-    const couponData = {
-      user_id: user.uid,
-      items: [{ ...item, qty: 1, price_cents: 0, name: `${item.name}` }],
-      total_cents: 0,
-      status: "reward_pending",
-      payment_method: "loyalty",
-      source,
-      created_at: serverTimestamp(),
-      qr_token: generateToken(),
-    };
-    await addDoc(collection(db, "orders"), couponData);
-  };
-
   return (
     <div className="p-4 pb-24 bg-gray-50 min-h-full">
-      {/* HEADER */}
+      {/* HEADER SOLDE */}
       <div className="bg-gradient-to-br from-indigo-900 to-purple-800 p-6 rounded-3xl text-white shadow-xl mb-8 relative overflow-hidden">
         <div className="relative z-10 text-center">
           <div className="text-xs font-bold text-indigo-200 uppercase tracking-widest mb-1">
@@ -183,7 +212,7 @@ export default function LoyaltyScreen({
         <Sparkles className="absolute left-4 top-4 text-yellow-400/30 w-12 h-12 animate-pulse" />
       </div>
 
-      {/* ROULETTE */}
+      {/* ZONE ROULETTE */}
       <div className="mb-10">
         <div className="flex items-center justify-between mb-2 px-1">
           <h2 className="font-black text-xl text-gray-800 flex items-center gap-2">
@@ -209,7 +238,7 @@ export default function LoyaltyScreen({
 
             <div
               ref={stripRef}
-              className="flex gap-2 will-change-transform pl-[50%]" // pl-50% est crucial pour démarrer au centre
+              className="flex gap-2 will-change-transform pl-[50%]"
               style={{ transform: "translateX(0px)" }}
             >
               {(spinning || rouletteItems.length > 0
@@ -229,6 +258,7 @@ export default function LoyaltyScreen({
                   >
                     <img
                       src={p.image}
+                      alt={p.name}
                       className="h-16 w-16 object-contain mb-2"
                       onError={(e) => (e.target.style.display = "none")}
                     />
@@ -255,7 +285,7 @@ export default function LoyaltyScreen({
         </Button>
       </div>
 
-      {/* BOUTIQUE */}
+      {/* ZONE BOUTIQUE DIRECTE */}
       <div>
         <h2 className="font-black text-xl text-gray-800 mb-4 flex items-center gap-2 px-1">
           <Ticket className="text-teal-600" /> Boutique
@@ -279,6 +309,7 @@ export default function LoyaltyScreen({
                   <div className="h-24 w-full flex items-center justify-center mb-2">
                     <img
                       src={p.image}
+                      alt={p.name}
                       className="h-20 w-20 object-contain transition-transform group-hover:scale-110"
                       onError={(e) => (e.target.style.display = "none")}
                     />
