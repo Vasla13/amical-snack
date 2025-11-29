@@ -11,9 +11,264 @@ import {
   deleteDoc,
   serverTimestamp,
 } from "firebase/firestore";
-import { Camera, Clock, LogOut, Package, History } from "lucide-react";
+import {
+  Camera,
+  Clock,
+  LogOut,
+  Package,
+  History,
+  X,
+  Flashlight,
+} from "lucide-react";
 import { SEED_PRODUCTS } from "../../data/seedProducts.js";
 import { formatPrice } from "../../lib/format.js";
+
+function ScannerModal({ open, onClose, onScan }) {
+  const videoRef = useRef(null);
+  const streamRef = useRef(null);
+  const rafRef = useRef(null);
+
+  const [error, setError] = useState("");
+  const [torchSupported, setTorchSupported] = useState(false);
+  const [torchOn, setTorchOn] = useState(false);
+
+  const stop = async () => {
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    rafRef.current = null;
+
+    try {
+      if (videoRef.current) videoRef.current.srcObject = null;
+    } catch {}
+
+    try {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((t) => t.stop());
+      }
+    } catch {}
+
+    streamRef.current = null;
+    setTorchSupported(false);
+    setTorchOn(false);
+  };
+
+  const toggleTorch = async () => {
+    try {
+      const stream = streamRef.current;
+      if (!stream) return;
+      const track = stream.getVideoTracks?.()[0];
+      if (!track) return;
+
+      const caps = track.getCapabilities?.();
+      if (!caps?.torch) return;
+
+      const next = !torchOn;
+      await track.applyConstraints({ advanced: [{ torch: next }] });
+      setTorchOn(next);
+    } catch {
+      // Silence: certains navigateurs refusent même si "torch" existe
+    }
+  };
+
+  const normalizeToken = (raw) => {
+    if (!raw) return "";
+    const s = String(raw).trim();
+
+    // Si jamais le QR contient une URL, on prend le dernier segment
+    if (s.includes("http://") || s.includes("https://")) {
+      const last = s.split("/").filter(Boolean).pop() || s;
+      return last.trim().toUpperCase();
+    }
+
+    // Sinon, direct (ex: X9Y2)
+    return s.toUpperCase();
+  };
+
+  const scanLoop = async () => {
+    try {
+      const video = videoRef.current;
+      if (!video) return;
+
+      // BarcodeDetector (QR)
+      // eslint-disable-next-line no-undef
+      const BarcodeDetectorImpl = window.BarcodeDetector;
+      if (!BarcodeDetectorImpl) {
+        setError(
+          "Scan QR non supporté sur ce navigateur. Utilise Chrome ou saisis le code."
+        );
+        return;
+      }
+
+      // eslint-disable-next-line no-undef
+      const detector = new BarcodeDetectorImpl({ formats: ["qr_code"] });
+
+      const tick = async () => {
+        try {
+          if (!videoRef.current || video.readyState < 2) {
+            rafRef.current = requestAnimationFrame(tick);
+            return;
+          }
+
+          const codes = await detector.detect(video);
+          if (codes && codes.length) {
+            const raw = codes[0].rawValue;
+            const token = normalizeToken(raw);
+            if (token) {
+              onScan(token);
+              await stop();
+              onClose();
+              return;
+            }
+          }
+        } catch {
+          // ignore frame errors
+        }
+        rafRef.current = requestAnimationFrame(tick);
+      };
+
+      rafRef.current = requestAnimationFrame(tick);
+    } catch {
+      setError(
+        "Impossible de lancer le scanner. Autorise la caméra et réessaie."
+      );
+    }
+  };
+
+  const start = async () => {
+    setError("");
+
+    try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setError("Caméra non disponible sur ce navigateur.");
+        return;
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: "environment" }, // caméra arrière
+        },
+        audio: false,
+      });
+
+      streamRef.current = stream;
+
+      const video = videoRef.current;
+      if (video) {
+        video.srcObject = stream;
+        video.setAttribute("playsinline", "true"); // iOS
+        await video.play();
+      }
+
+      // Torch support (si dispo)
+      try {
+        const track = stream.getVideoTracks?.()[0];
+        const caps = track?.getCapabilities?.();
+        setTorchSupported(!!caps?.torch);
+      } catch {
+        setTorchSupported(false);
+      }
+
+      await scanLoop();
+    } catch {
+      setError(
+        "Accès caméra refusé ou indisponible. Autorise la caméra dans le navigateur."
+      );
+    }
+  };
+
+  useEffect(() => {
+    if (!open) {
+      stop();
+      setError("");
+      return;
+    }
+    start();
+
+    return () => {
+      stop();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center bg-black/60 p-3">
+      <div className="w-full sm:max-w-md bg-white rounded-2xl overflow-hidden shadow-2xl">
+        <div className="flex items-center justify-between p-3 border-b">
+          <div className="font-black text-gray-800 flex items-center gap-2">
+            <Camera size={18} className="text-teal-700" />
+            Scanner QR
+          </div>
+          <button
+            onClick={async () => {
+              await stop();
+              onClose();
+            }}
+            className="p-2 rounded-xl hover:bg-gray-100"
+            aria-label="Fermer"
+          >
+            <X />
+          </button>
+        </div>
+
+        <div className="p-3">
+          <div className="relative rounded-2xl overflow-hidden bg-black">
+            <video ref={videoRef} className="w-full h-[320px] object-cover" />
+            {/* cadre */}
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+              <div className="w-56 h-56 rounded-2xl border-2 border-white/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.25)]" />
+            </div>
+
+            {torchSupported && (
+              <button
+                onClick={toggleTorch}
+                className={`absolute top-3 right-3 px-3 py-2 rounded-xl text-xs font-black flex items-center gap-2 shadow-lg ${
+                  torchOn
+                    ? "bg-yellow-400 text-black"
+                    : "bg-white text-gray-900"
+                }`}
+              >
+                <Flashlight size={16} />
+                {torchOn ? "FLASH ON" : "FLASH"}
+              </button>
+            )}
+          </div>
+
+          {error ? (
+            <div className="mt-3 text-sm text-red-600 font-bold bg-red-50 border border-red-100 p-3 rounded-xl">
+              {error}
+            </div>
+          ) : (
+            <div className="mt-3 text-xs text-gray-500">
+              Pointe le QR du client. Le code sera rempli automatiquement.
+            </div>
+          )}
+
+          <div className="mt-3 flex gap-2">
+            <button
+              onClick={() => {
+                setError("");
+                stop().then(start);
+              }}
+              className="flex-1 bg-gray-900 text-white py-3 rounded-xl font-black"
+            >
+              Relancer
+            </button>
+            <button
+              onClick={async () => {
+                await stop();
+                onClose();
+              }}
+              className="flex-1 bg-white border border-gray-200 py-3 rounded-xl font-black text-gray-800"
+            >
+              Fermer
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function AdminDashboard({ db, products, onLogout }) {
   const ORDER_TTL_MS = 10 * 60 * 1000;
@@ -21,6 +276,9 @@ export default function AdminDashboard({ db, products, onLogout }) {
   const [orders, setOrders] = useState([]);
   const [scanInput, setScanInput] = useState("");
   const [adminTab, setAdminTab] = useState("orders"); // orders | history | stock
+
+  // Scanner
+  const [scannerOpen, setScannerOpen] = useState(false);
 
   // Historique filters
   const [historyFilter, setHistoryFilter] = useState("all"); // all | paid | served
@@ -100,7 +358,10 @@ export default function AdminDashboard({ db, products, onLogout }) {
     if (!token) return;
 
     const order = (ordersRef.current || []).find(
-      (o) => o.qr_token === token && o.status === "created" && !isExpired(o)
+      (o) =>
+        String(o.qr_token || "").toUpperCase() === token &&
+        o.status === "created" &&
+        !isExpired(o)
     );
 
     if (!order) return alert("Code invalide, expiré, ou déjà scanné !");
@@ -128,7 +389,7 @@ export default function AdminDashboard({ db, products, onLogout }) {
       await addDoc(collection(db, "products"), {
         ...item,
         is_available: true,
-        stock_qty: null, // optionnel
+        stock_qty: null,
         sort_order: 1,
       });
     }
@@ -217,6 +478,12 @@ export default function AdminDashboard({ db, products, onLogout }) {
 
   return (
     <div className="min-h-screen bg-gray-100 p-4 font-sans">
+      <ScannerModal
+        open={scannerOpen}
+        onClose={() => setScannerOpen(false)}
+        onScan={(token) => setScanInput(token)}
+      />
+
       <div className="flex justify-between items-center mb-4 gap-3">
         <h1 className="font-black text-2xl text-gray-800">ADMIN R&amp;T</h1>
 
@@ -257,16 +524,31 @@ export default function AdminDashboard({ db, products, onLogout }) {
               de {Math.round(ORDER_TTL_MS / 60000)} min.
             </p>
 
-            <div className="flex gap-3">
-              <input
-                value={scanInput}
-                onChange={(e) => setScanInput(e.target.value.toUpperCase())}
-                placeholder="CODE (ex: X9Y2)"
-                className="flex-1 p-4 border-2 border-gray-200 rounded-xl font-mono text-center text-xl tracking-widest outline-none focus:border-teal-500 uppercase"
-              />
+            {/* ✅ Layout mobile correct : champ + cam en ligne, bouton VALIDER en dessous */}
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="flex gap-2 flex-1">
+                <button
+                  onClick={() => setScannerOpen(true)}
+                  className="shrink-0 bg-teal-700 hover:bg-teal-800 text-white w-14 h-14 rounded-xl font-bold shadow-lg active:scale-95 transition-all flex items-center justify-center"
+                  aria-label="Ouvrir la caméra"
+                  title="Ouvrir la caméra"
+                >
+                  <Camera />
+                </button>
+
+                <input
+                  value={scanInput}
+                  onChange={(e) => setScanInput(e.target.value.toUpperCase())}
+                  placeholder="CODE (ex: X9Y2)"
+                  className="flex-1 p-4 h-14 border-2 border-gray-200 rounded-xl font-mono text-center text-xl tracking-widest outline-none focus:border-teal-500 uppercase"
+                  inputMode="text"
+                  autoCapitalize="characters"
+                />
+              </div>
+
               <button
                 onClick={handleScan}
-                className="bg-teal-700 hover:bg-teal-800 text-white px-6 rounded-xl font-bold shadow-lg active:scale-95 transition-all"
+                className="bg-teal-700 hover:bg-teal-800 text-white h-14 w-full sm:w-auto px-6 rounded-xl font-black shadow-lg active:scale-95 transition-all"
               >
                 VALIDER
               </button>

@@ -98,7 +98,7 @@ export default function App() {
     );
   };
 
-  // ✅ Déconnexion (utilisateur + admin)
+  // Déconnexion (utilisateur + admin)
   const handleLogout = async () => {
     if (!user) return;
 
@@ -123,6 +123,7 @@ export default function App() {
     if (outOfStock) return alert(`Produit en rupture: ${outOfStock.name}`);
 
     const total = cart.reduce((s, i) => s + i.price_cents * i.qty, 0);
+
     const orderData = {
       user_id: user.uid,
       items: cart,
@@ -138,15 +139,22 @@ export default function App() {
     setTab("order");
   };
 
+  // ✅ Points fidélité : 1€ = 1 point
   const payOrder = async () => {
     if (!currentOrder) return;
+
+    const totalCents = Number(currentOrder.total_cents || 0);
 
     await updateDoc(doc(db, "orders", currentOrder.id), {
       status: "paid",
       paid_at: serverTimestamp(),
+      points_earned: totalCents / 100,
     });
 
-    const newPoints = (userData?.points || 0) + 1;
+    // éviter les erreurs float : on passe par des "centi-points"
+    const prevCenti = Math.round(Number(userData?.points || 0) * 100);
+    const newPoints = (prevCenti + totalCents) / 100;
+
     await updateDoc(doc(db, "users", user.uid), { points: newPoints });
   };
 
@@ -184,7 +192,7 @@ export default function App() {
         </div>
         <div className="bg-teal-50 px-3 py-1 rounded-full border border-teal-100 flex items-center gap-1">
           <span className="font-bold text-teal-800">
-            {userData?.points || 0}
+            {userData?.points ?? 0}
           </span>
           <span className="text-[10px] uppercase text-teal-600 font-bold">
             pts
@@ -209,7 +217,16 @@ export default function App() {
             }}
           />
         )}
-        {tab === "profile" && <Profile user={userData} logout={handleLogout} />}
+
+        {/* ✅ Le leaderboard est dans MOI */}
+        {tab === "profile" && (
+          <Profile
+            user={userData}
+            logout={handleLogout}
+            db={db}
+            uid={user?.uid}
+          />
+        )}
       </main>
 
       <nav className="absolute bottom-0 w-full bg-white border-t flex justify-around p-2 pb-5 z-20 shadow-[0_-5px_15px_rgba(0,0,0,0.02)]">
