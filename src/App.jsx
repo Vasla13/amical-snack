@@ -12,37 +12,40 @@ import {
   signInWithEmailLink,
   updatePassword,
 } from "firebase/auth";
-import { ShoppingBag, CreditCard, QrCode, User, Gift } from "lucide-react";
+import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
 
 import { auth, db } from "./config/firebase.js";
 import { generateToken } from "./lib/token.js";
 import { useAuth } from "./context/AuthContext.jsx";
 
+// Pages
+import LoginScreen from "./features/auth/LoginScreen.jsx";
+import MainLayout from "./features/layout/MainLayout.jsx";
 import Catalog from "./features/catalog/Catalog.jsx";
 import Cart from "./features/cart/Cart.jsx";
 import PassScreen from "./features/order/PassScreen.jsx";
+import LoyaltyScreen from "./features/loyalty/LoyaltyScreen.jsx";
 import Profile from "./features/profile/Profile.jsx";
 import AdminDashboard from "./features/admin/AdminDashboard.jsx";
-import LoginScreen from "./features/auth/LoginScreen.jsx";
-import LoyaltyScreen from "./features/loyalty/LoyaltyScreen.jsx";
-import NavBtn from "./ui/NavBtn.jsx";
+
+// UI Components
 import Button from "./ui/Button.jsx";
 import Toast from "./ui/Toast.jsx";
 import Modal from "./ui/Modal.jsx";
 
 export default function App() {
-  const { user, userData } = useAuth();
+  const { user, userData, loading, isAdmin } = useAuth();
+  const navigate = useNavigate();
 
-  const [view, setView] = useState("login");
+  // États globaux
   const [products, setProducts] = useState([]);
   const [cart, setCart] = useState([]);
-  const [tab, setTab] = useState("catalog");
 
+  // États UI
   const [toast, setToast] = useState(null);
   const [modal, setModal] = useState(null);
   const [emailPrompt, setEmailPrompt] = useState(false);
   const [emailInput, setEmailInput] = useState("");
-
   const [newPassword, setNewPassword] = useState("");
   const [pwdLoading, setPwdLoading] = useState(false);
 
@@ -54,22 +57,7 @@ export default function App() {
   const notify = (msg, type = "info") => setToast({ msg, type });
   const confirmAction = (opts) => setModal(opts);
 
-  // 1. ROUTING
-  useEffect(() => {
-    if (!user) {
-      setView("login");
-    } else if (userData) {
-      if (userData.setup_complete === false) {
-        setView("create_password");
-      } else if (userData.role === "admin") {
-        setView("admin");
-      } else {
-        setView("app");
-      }
-    }
-  }, [user, userData]);
-
-  // 2. LIEN MAGIQUE
+  // 1. GESTION DU RETOUR LIEN MAGIQUE
   useEffect(() => {
     if (isSignInWithEmailLink(auth, window.location.href)) {
       let email = window.localStorage.getItem("emailForSignIn");
@@ -85,16 +73,15 @@ export default function App() {
     signInWithEmailLink(auth, email, window.location.href)
       .then(() => {
         window.localStorage.removeItem("emailForSignIn");
-        window.history.replaceState({}, document.title, "/");
         setEmailPrompt(false);
+        // La redirection sera gérée par le state 'user' qui changera
       })
       .catch(() => {
         notify("Lien invalide ou expiré.", "error");
-        setView("login");
       });
   };
 
-  // 3. DATA
+  // 2. CHARGEMENT PRODUITS
   useEffect(() => {
     if (!user) return;
     const unsub = onSnapshot(collection(db, "products"), (s) =>
@@ -103,7 +90,8 @@ export default function App() {
     return () => unsub();
   }, [user]);
 
-  // ACTIONS
+  // --- ACTIONS GLOBALES ---
+
   const handleCreatePassword = async () => {
     if (newPassword.length < 6) return notify("6 caractères min !", "error");
     setPwdLoading(true);
@@ -111,6 +99,7 @@ export default function App() {
       await updatePassword(user, newPassword);
       await updateDoc(doc(db, "users", user.uid), { setup_complete: true });
       notify("Compte finalisé !", "success");
+      // Le router va automatiquement rediriger vers / car userData changera
     } catch (e) {
       notify(e.message, "error");
     } finally {
@@ -121,7 +110,7 @@ export default function App() {
   const handleLogout = async () => {
     await auth.signOut();
     setCart([]);
-    setTab("catalog");
+    navigate("/login");
   };
 
   const createOrder = async () => {
@@ -141,7 +130,7 @@ export default function App() {
     };
     await addDoc(collection(db, "orders"), orderData);
     setCart([]);
-    setTab("pass");
+    navigate("/pass"); // Navigation auto vers le pass
     notify("Commande créée !", "success");
   };
 
@@ -161,7 +150,6 @@ export default function App() {
       payment_simulated: true,
       points_earned: totalCents / 100,
     });
-    // Ajout des points
     const prevPts = Number(userDataRef.current?.points || 0);
     await updateDoc(doc(db, "users", user.uid), {
       points: prevPts + totalCents / 100,
@@ -178,8 +166,9 @@ export default function App() {
     notify("Vendeur notifié.", "info");
   };
 
-  // RENDU
-  if (view === "login") return <LoginScreen />;
+  // --- RENDU SPÉCIAL (Hors routing) ---
+
+  if (loading) return null; // ou Spinner déjà géré par AuthProvider
 
   if (emailPrompt) {
     return (
@@ -196,47 +185,20 @@ export default function App() {
     );
   }
 
-  if (view === "create_password") {
-    return (
-      <div className="h-screen flex flex-col items-center justify-center p-6 bg-white text-center">
-        <h1 className="text-2xl font-black text-gray-800 mb-2">
-          Compte validé !
-        </h1>
-        <p className="text-gray-500 mb-8">Choisis un mot de passe.</p>
-        <div className="w-full max-w-sm space-y-4">
-          <input
-            type="password"
-            className="w-full p-4 bg-gray-50 rounded-xl border font-bold"
-            placeholder="Nouveau mot de passe"
-            value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
-          />
-          <Button
-            onClick={handleCreatePassword}
-            disabled={pwdLoading}
-            className="w-full"
-          >
-            {pwdLoading ? "..." : "TERMINER"}
-          </Button>
-        </div>
-        {toast && (
-          <Toast
-            msg={toast.msg}
-            type={toast.type}
-            onClose={() => setToast(null)}
-          />
-        )}
-      </div>
-    );
-  }
+  // --- ROUTING ---
 
-  if (view === "admin")
-    return (
-      <AdminDashboard db={db} products={products} onLogout={handleLogout} />
-    );
+  // Protection : Redirige vers login si pas connecté
+  const ProtectedRoute = ({ children }) => {
+    if (!user) return <Navigate to="/login" />;
+    if (userData && userData.setup_complete === false)
+      return <Navigate to="/setup" />;
+    if (userData && userData.role === "admin") return <Navigate to="/admin" />;
+    return children;
+  };
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50 max-w-md mx-auto relative font-sans text-gray-800">
+    <>
+      {/* Éléments UI Globaux */}
       {toast && (
         <Toast
           msg={toast.msg}
@@ -258,99 +220,123 @@ export default function App() {
         {modal?.text}
       </Modal>
 
-      <header className="bg-white p-3 shadow-sm flex justify-between items-center z-10 sticky top-0">
-        <div className="flex items-center gap-3">
-          <img
-            src="/logo.png"
-            alt="RT"
-            className="w-10 h-10 object-contain"
-            onError={(e) => (e.target.style.display = "none")}
-          />
-          <div>
-            <h1 className="font-black text-lg text-teal-800 leading-none">
-              AMICALE R&T
-            </h1>
-            <p className="text-xs text-gray-400 font-bold">COLMAR</p>
-          </div>
-        </div>
-        <div className="bg-teal-50 px-3 py-1 rounded-full border border-teal-100 flex items-center gap-1">
-          <span className="font-bold text-teal-800">
-            {Number(userData?.points ?? 0).toFixed(2)}
-          </span>
-          <span className="text-[10px] uppercase text-teal-600 font-bold">
-            pts
-          </span>
-        </div>
-      </header>
+      <Routes>
+        {/* Route Login */}
+        <Route
+          path="/login"
+          element={!user ? <LoginScreen /> : <Navigate to="/" />}
+        />
 
-      <main className="flex-1 overflow-y-auto pb-20 scroll-smooth">
-        {tab === "catalog" && (
-          <Catalog products={products} cart={cart} setCart={setCart} />
-        )}
-        {tab === "cart" && (
-          <Cart cart={cart} setCart={setCart} onValidate={createOrder} />
-        )}
-        {tab === "pass" && (
-          <PassScreen
-            db={db}
-            onPay={payOrder} // ✅ CORRIGÉ : On passe la fonction directement
-            onRequestCash={requestCashPayment} // ✅ CORRIGÉ
-          />
-        )}
-        {tab === "loyalty" && (
-          <LoyaltyScreen
-            user={userData}
-            products={products}
-            db={db}
-            onGoToPass={() => setTab("pass")}
-            notify={notify}
-            onConfirm={confirmAction}
-          />
-        )}
-        {tab === "profile" && (
-          <Profile
-            user={userData}
-            logout={handleLogout}
-            db={db}
-            uid={user?.uid}
-            auth={auth}
-          />
-        )}
-      </main>
+        {/* Route Admin */}
+        <Route
+          path="/admin"
+          element={
+            isAdmin ? (
+              <AdminDashboard
+                db={db}
+                products={products}
+                onLogout={handleLogout}
+              />
+            ) : (
+              <Navigate to="/" />
+            )
+          }
+        />
 
-      <nav className="absolute bottom-0 w-full bg-white border-t flex justify-around p-2 pb-5 z-20 shadow-[0_-5px_15px_rgba(0,0,0,0.02)]">
-        <NavBtn
-          icon={ShoppingBag}
-          active={tab === "catalog"}
-          onClick={() => setTab("catalog")}
-          label="Carte"
+        {/* Route Setup (Création password) */}
+        <Route
+          path="/setup"
+          element={
+            user && userData?.setup_complete === false ? (
+              <div className="h-screen flex flex-col items-center justify-center p-6 bg-white text-center font-sans">
+                <h1 className="text-2xl font-black text-gray-800 mb-2">
+                  Compte validé !
+                </h1>
+                <p className="text-gray-500 mb-8">Choisis un mot de passe.</p>
+                <div className="w-full max-w-sm space-y-4">
+                  <input
+                    type="password"
+                    className="w-full p-4 bg-gray-50 rounded-xl border font-bold"
+                    placeholder="Nouveau mot de passe"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                  />
+                  <Button
+                    onClick={handleCreatePassword}
+                    disabled={pwdLoading}
+                    className="w-full"
+                  >
+                    {pwdLoading ? "..." : "TERMINER"}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <Navigate to="/" />
+            )
+          }
         />
-        <NavBtn
-          icon={CreditCard}
-          active={tab === "cart"}
-          onClick={() => setTab("cart")}
-          label="Panier"
-          badge={cart.reduce((a, c) => a + c.qty, 0)}
-        />
-        <NavBtn
-          icon={Gift}
-          active={tab === "loyalty"}
-          onClick={() => setTab("loyalty")}
-          label="Cadeaux"
-        />
-        <NavBtn
-          icon={QrCode}
-          active={tab === "pass"}
-          onClick={() => setTab("pass")}
-          label="Pass"
-        />
-        <NavBtn
-          icon={User}
-          active={tab === "profile"}
-          onClick={() => setTab("profile")}
-          label="Moi"
-        />
-      </nav>
-    </div>
+
+        {/* Routes Application (Protégées + Layout) */}
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <MainLayout cartCount={cart.reduce((a, c) => a + c.qty, 0)} />
+            </ProtectedRoute>
+          }
+        >
+          <Route
+            index
+            element={
+              <Catalog products={products} cart={cart} setCart={setCart} />
+            }
+          />
+          <Route
+            path="cart"
+            element={
+              <Cart cart={cart} setCart={setCart} onValidate={createOrder} />
+            }
+          />
+          <Route
+            path="pass"
+            element={
+              <PassScreen
+                db={db}
+                onPay={payOrder}
+                onRequestCash={requestCashPayment}
+              />
+            }
+          />
+          <Route
+            path="loyalty"
+            element={
+              <LoyaltyScreen
+                user={userData}
+                products={products}
+                db={db}
+                onGoToPass={() => navigate("/pass")}
+                notify={notify}
+                onConfirm={confirmAction}
+              />
+            }
+          />
+          <Route
+            path="profile"
+            element={
+              <Profile
+                user={userData}
+                logout={handleLogout}
+                db={db}
+                uid={user?.uid}
+                auth={auth}
+              />
+            }
+          />
+        </Route>
+
+        {/* Fallback 404 */}
+        <Route path="*" element={<Navigate to="/" />} />
+      </Routes>
+    </>
   );
 }
