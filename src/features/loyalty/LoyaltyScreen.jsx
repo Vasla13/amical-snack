@@ -5,7 +5,7 @@ import {
   serverTimestamp,
   writeBatch,
 } from "firebase/firestore";
-import { Gift, Dices, Sparkles, Ticket } from "lucide-react";
+import { Dices, Sparkles, Ticket } from "lucide-react";
 import Button from "../../ui/Button.jsx";
 import { generateToken } from "../../lib/token.js";
 
@@ -20,6 +20,7 @@ const ITEM_FULL_WIDTH = CARD_WIDTH + GAP;
 const WINNER_INDEX = 30; // Index fixe du gagnant
 const TOTAL_ITEMS = 35; // Nombre total d'items dans la bande
 
+// Fonction Helper pure pour le tirage aléatoire pondéré
 const pickRandomWeighted = (pool) => {
   if (!pool || pool.length === 0) return null;
   const itemsWithWeight = pool.map((p) => ({
@@ -53,51 +54,68 @@ export default function LoyaltyScreen({
   const containerRef = useRef(null);
   const stripRef = useRef(null);
 
-  // --- EFFET D'ANIMATION ---
-  // Se déclenche automatiquement dès que 'rouletteItems' est rempli et 'spinning' est vrai
+  // Sauvegarde des callbacks dans des refs pour qu'ils ne redéclenchent pas l'effet
+  // si le parent (App) se met à jour (ex: quand les points changent).
+  const onConfirmRef = useRef(onConfirm);
+  const onGoToPassRef = useRef(onGoToPass);
+
   useEffect(() => {
+    onConfirmRef.current = onConfirm;
+    onGoToPassRef.current = onGoToPass;
+  }, [onConfirm, onGoToPass]);
+
+  // --- EFFET D'ANIMATION ROBUSTE ---
+  useEffect(() => {
+    // On ne lance l'anim que si on a tout ce qu'il faut
     if (!spinning || rouletteItems.length === 0 || !winner) return;
 
     const strip = stripRef.current;
     if (!strip) return;
 
-    // 1. Reset position (sans transition pour l'instant)
+    // 1. Initialisation (Reset à 0px sans animation)
     strip.style.transition = "none";
     strip.style.transform = "translateX(0px)";
 
-    // 2. Force le navigateur à recalculer (Reflow) pour bien prendre en compte le reset
+    // Force le navigateur à appliquer le style immédiatement
+    // eslint-disable-next-line no-unused-expressions
     strip.offsetHeight;
 
-    // 3. Calcul de la destination
+    // 2. Calcul de la destination
     const containerW = containerRef.current?.clientWidth || 0;
-    // On centre la carte gagnante (WINNER_INDEX) au milieu du conteneur
     const centerTarget = WINNER_INDEX * ITEM_FULL_WIDTH + CARD_WIDTH / 2;
     const translateX = centerTarget - containerW / 2;
-
-    // Petit aléatoire pour le réalisme (ne tombe jamais au pixel près au centre)
     const jitter = Math.floor(Math.random() * 40) - 20;
 
-    // 4. Lancement de l'animation
-    requestAnimationFrame(() => {
+    // 3. Lancement de l'animation après un micro-délai pour assurer que le DOM est prêt
+    const animTimer = setTimeout(() => {
       strip.style.transition =
         "transform 5.5s cubic-bezier(0.15, 0.85, 0.25, 1)";
       strip.style.transform = `translateX(-${translateX + jitter}px)`;
-    });
+    }, 50);
 
-    // 5. Timer de fin
-    const timer = setTimeout(() => {
+    // 4. Fin de l'animation & Notification
+    const finishTimer = setTimeout(() => {
       setSpinning(false);
-      onConfirm({
-        title: "C'est gagné ! 🎉",
-        text: `Tu as remporté : ${winner.name}. Ton coupon est déjà sécurisé dans ton Pass.`,
-        confirmText: "Voir mon Pass",
-        cancelText: "Rejouer",
-        onOk: onGoToPass,
-      });
-    }, 6000); // 6s pour être sûr que l'anim de 5.5s est finie
+      // On utilise la ref pour appeler la fonction la plus récente sans casser l'effet
+      if (onConfirmRef.current) {
+        onConfirmRef.current({
+          title: "C'est gagné ! 🎉",
+          text: `Tu as remporté : ${winner.name}. Ton coupon est déjà sécurisé dans ton Pass.`,
+          confirmText: "Voir mon Pass",
+          cancelText: "Rejouer",
+          onOk: () => onGoToPassRef.current && onGoToPassRef.current(),
+        });
+      }
+    }, 6000);
 
-    return () => clearTimeout(timer);
-  }, [spinning, rouletteItems, winner, onConfirm, onGoToPass]);
+    // Cleanup si le composant est démonté avant la fin
+    return () => {
+      clearTimeout(animTimer);
+      clearTimeout(finishTimer);
+    };
+
+    // IMPORTANT : On retire onConfirm/onGoToPass des dépendances pour éviter le restart
+  }, [spinning, rouletteItems, winner]);
 
   const spin = async () => {
     if (spinning) return;
@@ -109,17 +127,15 @@ export default function LoyaltyScreen({
     if (!pool.length) return notify("Stock vide !", "error");
 
     setSpinning(true);
-    setRouletteItems([]); // On vide la liste pour forcer un "reset" visuel si besoin
+    setRouletteItems([]); // Vide pour forcer le remount visuel
     setWinner(null);
 
     try {
-      // 1. Tirage au sort
       const winnerItem = pickRandomWeighted(pool);
       setWinner(winnerItem);
 
-      // 2. Transaction sécurisée (Points + Coupon)
+      // Transaction Firestore (Points + Coupon)
       const batch = writeBatch(db);
-
       const userRef = doc(db, "users", user.uid);
       batch.update(userRef, { points: user.points - COST_ROULETTE });
 
@@ -137,22 +153,21 @@ export default function LoyaltyScreen({
         qr_token: generateToken(),
       };
       batch.set(couponRef, couponData);
-
       await batch.commit();
 
-      // 3. Préparation de la bande visuelle
+      // Génération de la bande visuelle
       const strip = [];
       for (let i = 0; i < TOTAL_ITEMS; i++) {
         if (i === WINNER_INDEX) strip.push({ ...winnerItem, isWinner: true });
         else strip.push({ ...pickRandomWeighted(pool), isWinner: false });
       }
 
-      // 4. Mise à jour de l'état -> Cela va déclencher le useEffect ci-dessus
+      // Déclenche l'effet useEffect ci-dessus
       setRouletteItems(strip);
     } catch (error) {
       console.error("Erreur roulette:", error);
       setSpinning(false);
-      notify("Erreur de connexion. Réessaie.", "error");
+      notify("Erreur de connexion.", "error");
     }
   };
 
@@ -169,7 +184,6 @@ export default function LoyaltyScreen({
       onOk: async () => {
         try {
           const batch = writeBatch(db);
-
           const userRef = doc(db, "users", user.uid);
           batch.update(userRef, { points: user.points - cost });
 
@@ -187,7 +201,6 @@ export default function LoyaltyScreen({
             qr_token: generateToken(),
           };
           batch.set(couponRef, couponData);
-
           await batch.commit();
           notify("Coupon ajouté au Pass !", "success");
         } catch {
@@ -227,7 +240,6 @@ export default function LoyaltyScreen({
         </div>
 
         <div className="relative">
-          {/* Flèche fixe au centre */}
           <div className="absolute left-1/2 -top-2 -translate-x-1/2 z-30 drop-shadow-lg">
             <div className="w-0 h-0 border-l-[12px] border-l-transparent border-r-[12px] border-r-transparent border-t-[16px] border-t-yellow-500"></div>
           </div>
@@ -236,19 +248,16 @@ export default function LoyaltyScreen({
             ref={containerRef}
             className="h-40 bg-[#151515] rounded-2xl border-4 border-gray-800 shadow-inner overflow-hidden relative flex items-center"
           >
-            {/* Ligne centrale jaune */}
             <div className="absolute left-1/2 top-0 bottom-0 w-[2px] bg-yellow-500 z-20 -translate-x-1/2 shadow-[0_0_15px_rgba(234,179,8,0.5)]"></div>
 
             <div
               ref={stripRef}
               className="flex gap-2 will-change-transform pl-[50%]"
-              // IMPORTANT : Pas de style transform ici pour ne pas écraser l'animation JS
             >
               {(rouletteItems.length > 0
                 ? rouletteItems
                 : products.slice(0, 10)
               ).map((p, i) => {
-                // Design carte
                 const isRare = p.price_cents > 140;
                 return (
                   <div
@@ -288,7 +297,7 @@ export default function LoyaltyScreen({
         </Button>
       </div>
 
-      {/* ZONE BOUTIQUE DIRECTE */}
+      {/* ZONE BOUTIQUE */}
       <div>
         <h2 className="font-black text-xl text-gray-800 mb-4 flex items-center gap-2 px-1">
           <Ticket className="text-teal-600" /> Boutique
