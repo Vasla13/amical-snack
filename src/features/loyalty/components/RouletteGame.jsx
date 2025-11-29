@@ -1,46 +1,46 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   doc,
   collection,
   serverTimestamp,
   runTransaction,
 } from "firebase/firestore";
-import { Dices } from "lucide-react";
+import { Dices, Trophy, Loader2, Sparkles } from "lucide-react";
 import Button from "../../../ui/Button.jsx";
 import { generateToken } from "../../../lib/token.js";
 
-const COST_ROULETTE = 5;
-const CARD_WIDTH = 128;
-const GAP = 8;
-const ITEM_FULL_WIDTH = CARD_WIDTH + GAP;
-const WINNER_INDEX = 30;
-const TOTAL_ITEMS = 35;
+// --- CONFIGURATION ---
+const COST = 5;
+const ITEM_SIZE = 120; // Taille (largeur) d'une case
+const GAP = 12; // Espace entre les cases
+const WINNER_POS_INDEX = 55; // On place le gagnant loin (55ème position) pour que ça tourne longtemps
+const TOTAL_ITEMS = 70; // Nombre total de cases sur la bande
+const SPIN_SECONDS = 6; // Durée de l’animation de spin en secondes
 
-const normalizePoints = (value) => {
-  const num =
-    typeof value === "string"
-      ? Number(value.replace(",", ".").trim())
-      : Number(value);
-  return Number.isFinite(num) ? num : 0;
-};
+// --- UTILITAIRES ---
 
-const pickRandomWeighted = (pool) => {
-  if (!pool || pool.length === 0) return null;
-  const itemsWithWeight = pool.map((p) => ({
-    ...p,
-    weight: 1000 / (Number(p.price_cents) || 100),
-  }));
-  const totalWeight = itemsWithWeight.reduce(
-    (sum, item) => sum + item.weight,
-    0
-  );
-  let random = Math.random() * totalWeight;
-  for (const item of itemsWithWeight) {
-    if (random < item.weight) return item;
-    random -= item.weight;
+// Normalise les points (évite les NaN, null, undefined)
+function normalizePoints(points) {
+  if (typeof points === "number" && !Number.isNaN(points)) return points;
+  return 0;
+}
+
+// Tire un produit au hasard, pondéré par la probabilité (ou par défaut 1)
+function getRandomWeightedItem(items) {
+  const cleanItems = items.filter((item) => item && item.id);
+  if (cleanItems.length === 0) return null;
+
+  const weights = cleanItems.map((item) => item.probability || 1);
+  const totalWeight = weights.reduce((sum, w) => sum + w, 0);
+  const r = Math.random() * totalWeight;
+
+  let cumulative = 0;
+  for (let i = 0; i < cleanItems.length; i++) {
+    cumulative += weights[i];
+    if (r <= cumulative) return cleanItems[i];
   }
-  return pool[0];
-};
+  return cleanItems[cleanItems.length - 1];
+}
 
 export default function RouletteGame({
   user,
@@ -50,234 +50,304 @@ export default function RouletteGame({
   onConfirm,
   onGoToPass,
 }) {
-  const [spinning, setSpinning] = useState(false);
-  const [rouletteItems, setRouletteItems] = useState([]);
-  const [animKey, setAnimKey] = useState(0);
-  const [animConfig, setAnimConfig] = useState({ distance: 0, duration: 5500 });
+  const [gameState, setGameState] = useState("idle"); // idle, spinning, won
+  const [strip, setStrip] = useState([]);
 
+  // Référence directe vers l'élément DOM de la bande (plus fiable pour l'animation)
+  const stripRef = useRef(null);
   const containerRef = useRef(null);
-  const onConfirmRef = useRef(onConfirm);
-  const onGoToPassRef = useRef(onGoToPass);
-  const winnerRef = useRef(null);
-  const finishTimerRef = useRef(null);
-  const animDoneRef = useRef(false);
-  const txDoneRef = useRef(false);
-  const finishedRef = useRef(false);
+  const winnerRef = useRef(null); // On garde le gagnant en mémoire
 
+  // Initialisation : on montre une bande statique au chargement
   useEffect(() => {
-    onConfirmRef.current = onConfirm;
-    onGoToPassRef.current = onGoToPass;
-  }, [onConfirm, onGoToPass]);
-
-  useEffect(() => () => finishTimerRef.current && clearTimeout(finishTimerRef.current), []);
-
-  const maybeFinish = () => {
-    if (finishedRef.current) return;
-    if (!animDoneRef.current || !txDoneRef.current) return;
-    finishedRef.current = true;
-    setSpinning(false);
-
-    const currentWinner = winnerRef.current;
-    if (onConfirmRef.current && currentWinner) {
-      onConfirmRef.current({
-        title: "C'est gagné !",
-        text: `Tu as remporté : ${currentWinner.name}.`,
-        confirmText: "Voir mon Pass",
-        cancelText: "Rejouer",
-        onOk: () => onGoToPassRef.current && onGoToPassRef.current(),
-      });
+    if (products.length > 0 && strip.length === 0) {
+      const demoStrip = Array.from({ length: 8 }).map(() =>
+        getRandomWeightedItem(products.filter((p) => p.is_available !== false))
+      );
+      setStrip(demoStrip);
     }
+  }, [products, strip.length]);
+
+  const handleSpin = async () => {
+    const userPoints = normalizePoints(user?.points);
+    const availableProducts = (products || []).filter(
+      (p) => p.is_available !== false
+    );
+
+    if (userPoints < COST) return notify("Points insuffisants !", "error");
+    if (availableProducts.length === 0) return notify("Stock vide !", "error");
+    if (gameState === "spinning") return;
+
+    // 1. Choix du vainqueur
+    const winnerItem = getRandomWeightedItem(availableProducts);
+    winnerRef.current = winnerItem;
+
+    // 2. Construction de la bande de jeu
+    const gameStrip = Array.from({ length: TOTAL_ITEMS }).map(() =>
+      getRandomWeightedItem(availableProducts)
+    );
+    // On insère le vainqueur à la position cible
+    gameStrip[WINNER_POS_INDEX] = winnerItem;
+    setStrip(gameStrip);
+
+    setGameState("spinning");
+
+    // 3. LANCEMENT DE L'ANIMATION (Manipulation DOM directe)
+    // On utilise requestAnimationFrame pour être sûr que le DOM est à jour,
+    // puis on sépare bien le RESET et le START sur deux frames différentes.
+    requestAnimationFrame(() => {
+      const el = stripRef.current;
+      const cont = containerRef.current;
+      if (!el || !cont) return;
+
+      // A. RESET : On se place au début (0px) sans transition
+      el.style.transition = "none";
+      el.style.transform = "translateX(0px)";
+
+      // B. FORCE REFLOW : on force le navigateur à appliquer la position 0
+      // avant de lancer la vraie animation
+      el.getBoundingClientRect();
+
+      // C. CALCUL DE LA CIBLE
+      // Position gauche de la case gagnante
+      const targetLeft = WINNER_POS_INDEX * (ITEM_SIZE + GAP);
+      // On centre cette case dans le conteneur
+      const offset = cont.offsetWidth / 2 - ITEM_SIZE / 2;
+      // Petit aléatoire pour ne pas s'arrêter toujours au pixel près au centre (réalisme)
+      const randomShift = Math.floor(Math.random() * 40) - 20;
+
+      const finalTranslate = -(targetLeft - offset + randomShift);
+
+      // D. START : on lance l'animation sur la frame suivante
+      requestAnimationFrame(() => {
+        // cubic-bezier(0.15, 0.85, 0.15, 1.0) donne un effet de freinage progressif
+        el.style.transition = `transform ${SPIN_SECONDS}s cubic-bezier(0.15, 0.85, 0.15, 1.0)`;
+        el.style.transform = `translateX(${finalTranslate}px)`;
+
+        // E. Transaction Firebase en parallèle (pendant que ça tourne)
+        processTransaction(winnerItem);
+      });
+    });
   };
 
-  const handleAnimationEnd = () => {
-    animDoneRef.current = true;
-    maybeFinish();
-  };
-
-  const spin = async () => {
-    if (spinning) return;
-    if (normalizePoints(user?.points) < COST_ROULETTE)
-      return notify("Pas assez de points !", "error");
-    const pool = (products || []).filter((p) => p.is_available !== false);
-    if (!pool.length) return notify("Stock vide !", "error");
-
-    setSpinning(true);
-    finishedRef.current = false;
-    animDoneRef.current = false;
-    txDoneRef.current = false;
-
+  const processTransaction = async (item) => {
     try {
-      const winnerItem = pickRandomWeighted(pool);
-      if (!winnerItem) throw new Error("Aucun lot disponible");
-      winnerRef.current = winnerItem;
-
-      const strip = [];
-      for (let i = 0; i < TOTAL_ITEMS; i++) {
-        strip.push(
-          i === WINNER_INDEX
-            ? { ...winnerItem, isWinner: true }
-            : { ...pickRandomWeighted(pool), isWinner: false }
-        );
-      }
-      setRouletteItems(strip);
-
-      const containerW = containerRef.current?.clientWidth || 320;
-      const centerTarget = WINNER_INDEX * ITEM_FULL_WIDTH + CARD_WIDTH / 2;
-      const distance =
-        centerTarget - containerW / 2 + (Math.floor(Math.random() * 40) - 20);
-      setAnimConfig({ distance, duration: 5500 });
-      setAnimKey((k) => k + 1);
-
-      if (finishTimerRef.current) clearTimeout(finishTimerRef.current);
-      finishTimerRef.current = setTimeout(() => {
-        animDoneRef.current = true;
-        maybeFinish();
-      }, 6000);
-
       const userRef = doc(db, "users", user.uid);
       const couponRef = doc(collection(db, "orders"));
 
-      await runTransaction(db, async (tx) => {
-        const userSnap = await tx.get(userRef);
-        const currentPoints = normalizePoints(userSnap.data()?.points);
-        if (currentPoints < COST_ROULETTE) throw new Error("POINTS_LOW");
-        const nextPoints =
-          Math.round((currentPoints - COST_ROULETTE) * 100) / 100;
+      await runTransaction(db, async (transaction) => {
+        const userDoc = await transaction.get(userRef);
+        if (!userDoc.exists()) throw new Error("USER_NOT_FOUND");
 
-        tx.update(userRef, { points: nextPoints });
-        tx.set(couponRef, {
-          user_id: user.uid,
-          items: [
-            { ...winnerItem, qty: 1, price_cents: 0, name: winnerItem.name },
-          ],
-          total_cents: 0,
-          status: "reward_pending",
-          payment_method: "loyalty",
-          source: "Roulette",
-          created_at: serverTimestamp(),
-          qr_token: generateToken(),
+        const currentPoints = normalizePoints(userDoc.data().points);
+
+        if (currentPoints < COST) throw new Error("POINTS_LOW");
+
+        const newPoints = currentPoints - COST;
+
+        transaction.update(userRef, {
+          points: newPoints,
+          lastUpdated: serverTimestamp(),
+        });
+
+        const token = generateToken();
+
+        transaction.set(couponRef, {
+          userId: user.uid,
+          productId: item.id,
+          productName: item.name,
+          pointsUsed: COST,
+          token,
+          status: "won",
+          createdAt: serverTimestamp(),
         });
       });
-
-      txDoneRef.current = true;
-      maybeFinish();
     } catch (error) {
-      console.error("Roulette error", error);
-      finishedRef.current = true;
-      setSpinning(false);
+      console.error("Erreur transaction roulette:", error);
+      setGameState("idle");
       notify(
-        error?.message === "POINTS_LOW"
-          ? "Pas assez de points !"
-          : `Erreur technique${error?.message ? ` : ${error.message}` : ""}.`,
+        error.message === "POINTS_LOW"
+          ? "Points insuffisants"
+          : "Erreur technique",
         "error"
       );
     }
   };
 
-  const stripStyle = spinning
-    ? {
-        "--spin-distance": `${animConfig.distance}px`,
-        animationName: "roulette-spin",
-        animationDuration: `${animConfig.duration}ms`,
-        animationTimingFunction: "cubic-bezier(0.15, 0.85, 0.25, 1)",
-        animationFillMode: "forwards",
-        animationIterationCount: 1,
-        filter: "blur(0.4px)",
-      }
-    : { transform: "translateX(0px)" };
+  // 4. FIN DE L'ANIMATION
+  const onTransitionEnd = (e) => {
+    if (!stripRef.current) return;
+    // On ne réagit que si c'est bien la bande qui termine sa transition
+    if (e.target !== stripRef.current) return;
+    if (e.propertyName !== "transform") return;
+    if (gameState !== "spinning") return;
+
+    setGameState("won");
+    const wonItem = winnerRef.current;
+
+    onConfirm({
+      title: "🎉 C'EST GAGNÉ !",
+      text: (
+        <div className="flex flex-col items-center gap-4 py-2">
+          <div className="relative">
+            <div className="absolute inset-0 bg-yellow-400 blur-xl opacity-30 animate-pulse rounded-full"></div>
+            <img
+              src={wonItem.image}
+              className="w-32 h-32 object-contain relative z-10 drop-shadow-xl"
+              alt={wonItem.name}
+            />
+          </div>
+          <div className="text-center">
+            <p className="text-gray-500 text-sm font-bold uppercase tracking-wider mb-1">
+              Tu remportes
+            </p>
+            <p className="text-xl font-black text-gray-900 leading-tight">
+              {wonItem.name}
+            </p>
+          </div>
+        </div>
+      ),
+      confirmText: "VOIR MON PASS",
+      cancelText: "REJOUER",
+      onOk: () => onGoToPass && onGoToPass(),
+      onCancel: () => {
+        // Reset pour rejouer
+        setGameState("idle");
+        // On remet une petite bande démo
+        const demoStrip = Array.from({ length: 8 }).map(() =>
+          getRandomWeightedItem(
+            products.filter((p) => p.is_available !== false)
+          )
+        );
+        setStrip(demoStrip);
+        if (stripRef.current) {
+          stripRef.current.style.transition = "none";
+          stripRef.current.style.transform = "translateX(0px)";
+        }
+      },
+    });
+  };
+
+  const availableProducts = products.filter((p) => p.is_available !== false);
+  const canPlay =
+    normalizePoints(user?.points) >= COST &&
+    availableProducts.length > 0 &&
+    gameState !== "spinning";
 
   return (
-    <div className="mb-12">
-      <style>
-        {`
-          @keyframes roulette-spin {
-            to { transform: translateX(calc(-1 * var(--spin-distance, 0px))); }
-          }
-          @keyframes shimmer {
-            0% { opacity: 0.05; transform: translateX(-50%); }
-            50% { opacity: 0.25; transform: translateX(50%); }
-            100% { opacity: 0.05; transform: translateX(150%); }
-          }
-        `}
-      </style>
-
-      <div className="bg-gradient-to-br from-slate-950 via-indigo-900 to-slate-900 rounded-3xl p-4 shadow-2xl border border-indigo-800/50 relative overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(99,102,241,0.35),transparent_35%),radial-gradient(circle_at_80%_70%,rgba(16,185,129,0.25),transparent_35%)] pointer-events-none"></div>
-        <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(255,255,255,0.05)_0%,rgba(255,255,255,0)_40%,rgba(255,255,255,0.05)_80%)] animate-[shimmer_4s_linear_infinite] opacity-40 pointer-events-none"></div>
-
-        <div className="relative z-10 flex items-center justify-between mb-3">
-          <div className="flex items-center gap-3">
-            <div className="h-12 w-12 rounded-2xl bg-indigo-700/40 border border-indigo-300/30 flex items-center justify-center shadow-lg shadow-indigo-500/30">
-              <Dices className="text-indigo-100" size={24} />
-            </div>
-            <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-indigo-200/80 font-semibold">
-                Case Opening
-              </p>
-              <h2 className="text-xl font-black text-white">Booster mystère</h2>
-            </div>
+    <div className="mb-10 select-none">
+      {/* --- Header du jeu --- */}
+      <div className="flex items-center justify-between mb-4 px-1">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center border border-indigo-200 shadow-sm">
+            <Dices size={20} strokeWidth={2.5} />
           </div>
-          <span className="bg-emerald-500/20 text-emerald-100 text-xs font-black px-3 py-1 rounded-full border border-emerald-400/40 shadow-inner shadow-emerald-500/30">
-            {COST_ROULETTE} pts
-          </span>
+          <div>
+            <h2 className="font-bold text-gray-900 flex items-center gap-2">
+              <span>La Roulette des Récompenses</span>
+              <Sparkles className="w-4 h-4 text-yellow-400" />
+            </h2>
+            <p className="text-xs text-gray-500">
+              Dépense 5 points pour tenter de gagner un cadeau instantané ✨
+            </p>
+          </div>
         </div>
+        <div className="text-right text-xs text-gray-500">
+          <div>Coût par tirage : 5 pts</div>
+          <div>
+            Probabilités pondérées selon les disponibilités des produits 🎯
+          </div>
+        </div>
+      </div>
 
-        <div className="relative mb-4">
-          <div className="absolute inset-0 blur-3xl bg-indigo-500/10"></div>
-          <div className="relative">
-            <div className="absolute left-1/2 -top-3 -translate-x-1/2 z-30 drop-shadow-lg">
-              <div className="w-0 h-0 border-l-[12px] border-l-transparent border-r-[12px] border-r-transparent border-t-[16px] border-t-amber-400"></div>
-            </div>
+      {/* --- Zone de la roulette --- */}
+      <div className="relative bg-gradient-to-br from-indigo-900 via-indigo-950 to-slate-950 rounded-3xl shadow-2xl border border-indigo-700/40 p-4 sm:p-5">
+        {/* Halo lumineux */}
+        <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500/20 via-fuchsia-500/10 to-cyan-400/20 rounded-3xl blur-xl -z-10" />
+
+        {/* Bandeau central */}
+        <div className="relative bg-slate-950/70 rounded-2xl border border-indigo-700/60 px-4 py-5 overflow-hidden">
+          {/* Masque sombre sur les côtés pour un effet "focus" */}
+          <div className="pointer-events-none absolute inset-y-0 left-0 w-16 bg-gradient-to-r from-slate-950 via-slate-950/60 to-transparent z-20" />
+          <div className="pointer-events-none absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-slate-950 via-slate-950/60 to-transparent z-20" />
+
+          {/* Indicateur central (triangle / marqueur) */}
+          <div className="pointer-events-none absolute inset-y-0 left-1/2 w-0.5 bg-gradient-to-b from-yellow-400 via-yellow-300 to-transparent z-30 opacity-80" />
+          <div className="pointer-events-none absolute -top-1 left-1/2 -translate-x-1/2 z-30">
+            <div className="w-0 h-0 border-l-6 border-r-6 border-b-[10px] border-l-transparent border-r-transparent border-b-yellow-300 drop-shadow-[0_0_6px_rgba(250,204,21,0.8)]" />
+          </div>
+
+          {/* Bande des récompenses */}
+          <div ref={containerRef} className="relative overflow-hidden w-full">
             <div
-              ref={containerRef}
-              className="h-40 bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl border border-indigo-500/40 shadow-[0_10px_40px_rgba(0,0,0,0.45)] overflow-hidden relative flex items-center"
+              ref={stripRef}
+              className="flex items-center"
+              style={{ gap: `${GAP}px` }}
+              onTransitionEnd={onTransitionEnd}
             >
-              <div className="absolute left-1/2 top-0 bottom-0 w-[2px] bg-amber-400 z-20 -translate-x-1/2 shadow-[0_0_20px_rgba(251,191,36,0.8)]"></div>
-              <div
-                key={animKey}
-                className="flex gap-2 pl-[50%] will-change-transform"
-                style={stripStyle}
-                onAnimationEnd={handleAnimationEnd}
-              >
-                {(rouletteItems.length > 0
-                  ? rouletteItems
-                  : (products || []).slice(0, 10)
-                ).map((p, i) => (
+              {strip.map((item, index) => {
+                if (!item) return null;
+                const isWinnerSpot = index === WINNER_POS_INDEX;
+
+                return (
                   <div
-                    key={i}
-                    className={`flex-shrink-0 w-32 h-32 bg-white/95 rounded-xl p-3 flex flex-col items-center justify-center border-2 ${
-                      p.price_cents > 140
-                        ? "border-amber-300 shadow-[0_0_15px_rgba(251,191,36,0.45)]"
-                        : "border-slate-200"
-                    }`}
+                    key={`${item.id}-${index}`}
+                    className={`flex-shrink-0 w-[${ITEM_SIZE}px] h-[140px] rounded-2xl border transition-all duration-300 ${
+                      isWinnerSpot
+                        ? "border-yellow-400/80 bg-gradient-to-b from-yellow-500/20 via-slate-900/80 to-slate-950 shadow-[0_0_25px_rgba(250,204,21,0.5)] scale-[1.02]"
+                        : "border-slate-700/70 bg-slate-900/80"
+                    } flex flex-col items-center justify-center px-2`}
                   >
-                    <img
-                      src={p.image}
-                      alt={p.name}
-                      className="h-16 w-16 object-contain mb-2"
-                      onError={(e) => (e.target.style.display = "none")}
-                    />
-                    <div className="text-[11px] font-bold text-center leading-tight line-clamp-2 text-slate-800">
-                      {p.name}
+                    <div className="relative mb-2">
+                      {isWinnerSpot && (
+                        <div className="absolute -inset-2 bg-yellow-400/20 blur-md rounded-full" />
+                      )}
+                      <img
+                        src={item.image}
+                        alt={item.name}
+                        className="relative z-10 w-16 h-16 object-contain drop-shadow-[0_8px_20px_rgba(15,23,42,0.9)]"
+                      />
                     </div>
+                    <p
+                      className={`text-[11px] font-semibold text-center leading-tight ${
+                        isWinnerSpot ? "text-yellow-50" : "text-slate-100"
+                      }`}
+                    >
+                      {item.name}
+                    </p>
                   </div>
-                ))}
-              </div>
+                );
+              })}
             </div>
           </div>
         </div>
 
-        <Button
-          onClick={spin}
-          disabled={spinning || normalizePoints(user?.points) < COST_ROULETTE}
-          className={`w-full py-4 text-lg font-black shadow-xl rounded-2xl ${
-            spinning
-              ? "bg-slate-600 text-slate-200 opacity-70"
-              : "bg-gradient-to-r from-indigo-500 via-blue-500 to-cyan-400 hover:from-indigo-400 hover:to-cyan-300 text-white"
-          }`}
-        >
-          {spinning ? "OUVERTURE..." : "LANCER L'OUVERTURE"}
-        </Button>
+        {/* Bouton Lancer */}
+        <div className="mt-4 flex justify-center">
+          <Button
+            onClick={handleSpin}
+            disabled={!canPlay}
+            className={`px-6 rounded-full text-sm font-semibold shadow-lg transition ${
+              !canPlay
+                ? "bg-slate-700/70 text-slate-300 cursor-not-allowed"
+                : gameState === "spinning"
+                ? "bg-yellow-400 text-slate-900 animate-pulse"
+                : "bg-yellow-400 hover:bg-yellow-300 text-slate-900"
+            }`}
+          >
+            {gameState === "spinning" ? (
+              <span className="flex items-center gap-2">
+                <Loader2 className="animate-spin" /> SUSPENSE...
+              </span>
+            ) : gameState === "won" ? (
+              <span className="flex items-center gap-2 text-yellow-300">
+                <Trophy /> C'EST GAGNÉ !
+              </span>
+            ) : (
+              "LANCER (5 PTS)"
+            )}
+          </Button>
+        </div>
       </div>
     </div>
   );
