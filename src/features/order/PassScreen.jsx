@@ -16,15 +16,16 @@ import {
 } from "lucide-react";
 import OrderFlow from "./OrderFlow.jsx";
 import { formatPrice } from "../../lib/format.js";
+import { useAuth } from "../../context/AuthContext.jsx"; // ✅ Utilisation du contexte
 
-export default function PassScreen({ user, db, onPay, onRequestCash }) {
+export default function PassScreen({ db, onPay, onRequestCash }) {
+  const { userData: user } = useAuth(); // ✅ Récupération directe de l'user
   const [orders, setOrders] = useState([]);
   const [selectedOrder, setSelectedOrder] = useState(null);
 
   useEffect(() => {
     if (!user?.uid) return;
 
-    // Requête pour récupérer tes commandes et coupons
     const q = query(
       collection(db, "orders"),
       where("user_id", "==", user.uid),
@@ -45,21 +46,22 @@ export default function PassScreen({ user, db, onPay, onRequestCash }) {
       },
       (error) => {
         console.error("Erreur index ou permission :", error);
-        // Si erreur d'index (très probable), on ne plante pas l'app
       }
     );
 
     return () => unsub();
   }, [user, db]);
 
-  // Si on clique sur une commande, on affiche son détail (QR Code)
+  // Si on clique sur une commande, on affiche son détail (OrderFlow)
   if (selectedOrder) {
     return (
       <OrderFlow
         order={selectedOrder}
         user={user}
-        onPay={onPay}
-        onRequestCash={onRequestCash}
+        // ✅ C'est ici la modification cruciale :
+        // On passe à App.jsx la méthode de paiement ET la commande concernée
+        onPay={(method) => onPay(method, selectedOrder)}
+        onRequestCash={() => onRequestCash(selectedOrder)}
         onClose={() => setSelectedOrder(null)}
       />
     );

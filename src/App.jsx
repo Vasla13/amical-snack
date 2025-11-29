@@ -6,53 +6,41 @@ import {
   doc,
   updateDoc,
   serverTimestamp,
-  setDoc,
-  getDoc,
 } from "firebase/firestore";
 import {
-  onAuthStateChanged,
   isSignInWithEmailLink,
   signInWithEmailLink,
   updatePassword,
 } from "firebase/auth";
-import {
-  ShoppingBag,
-  CreditCard,
-  QrCode,
-  User,
-  RefreshCw,
-  Check,
-  Gift,
-} from "lucide-react";
+import { ShoppingBag, CreditCard, QrCode, User, Gift } from "lucide-react";
 
 import { auth, db } from "./config/firebase.js";
-import { ADMIN_EMAIL } from "./config/constants.js";
 import { generateToken } from "./lib/token.js";
+import { useAuth } from "./context/AuthContext.jsx";
 
 import Catalog from "./features/catalog/Catalog.jsx";
 import Cart from "./features/cart/Cart.jsx";
-import PassScreen from "./features/order/PassScreen.jsx"; // ✅ NOUVEAU
+import PassScreen from "./features/order/PassScreen.jsx";
 import Profile from "./features/profile/Profile.jsx";
 import AdminDashboard from "./features/admin/AdminDashboard.jsx";
 import LoginScreen from "./features/auth/LoginScreen.jsx";
 import LoyaltyScreen from "./features/loyalty/LoyaltyScreen.jsx";
 import NavBtn from "./ui/NavBtn.jsx";
 import Button from "./ui/Button.jsx";
-import Toast from "./ui/Toast.jsx"; // ✅ NOUVEAU
-import Modal from "./ui/Modal.jsx"; // ✅ NOUVEAU
+import Toast from "./ui/Toast.jsx";
+import Modal from "./ui/Modal.jsx";
 
 export default function App() {
-  const [user, setUser] = useState(null);
-  const [userData, setUserData] = useState(null);
-  const [view, setView] = useState("loading");
+  const { user, userData } = useAuth();
+
+  const [view, setView] = useState("login");
   const [products, setProducts] = useState([]);
   const [cart, setCart] = useState([]);
   const [tab, setTab] = useState("catalog");
 
-  // UI States
-  const [toast, setToast] = useState(null); // { msg: "...", type: "success" }
-  const [modal, setModal] = useState(null); // { title: "...", text: "...", onOk: fn }
-  const [emailPrompt, setEmailPrompt] = useState(false); // Pour le retour lien magique
+  const [toast, setToast] = useState(null);
+  const [modal, setModal] = useState(null);
+  const [emailPrompt, setEmailPrompt] = useState(false);
   const [emailInput, setEmailInput] = useState("");
 
   const [newPassword, setNewPassword] = useState("");
@@ -63,16 +51,30 @@ export default function App() {
     userDataRef.current = userData;
   }, [userData]);
 
-  // Helpers UI
   const notify = (msg, type = "info") => setToast({ msg, type });
-  const confirmAction = (opts) => setModal(opts); // { title, text, confirmText, cancelText, onOk }
+  const confirmAction = (opts) => setModal(opts);
 
-  // 1. RETOUR MAIL
+  // 1. ROUTING
+  useEffect(() => {
+    if (!user) {
+      setView("login");
+    } else if (userData) {
+      if (userData.setup_complete === false) {
+        setView("create_password");
+      } else if (userData.role === "admin") {
+        setView("admin");
+      } else {
+        setView("app");
+      }
+    }
+  }, [user, userData]);
+
+  // 2. LIEN MAGIQUE
   useEffect(() => {
     if (isSignInWithEmailLink(auth, window.location.href)) {
       let email = window.localStorage.getItem("emailForSignIn");
       if (!email) {
-        setEmailPrompt(true); // Affiche l'input au lieu du prompt natif
+        setEmailPrompt(true);
       } else {
         finishSignIn(email);
       }
@@ -92,68 +94,23 @@ export default function App() {
       });
   };
 
-  // 2. AUTH STATE
-  useEffect(() => {
-    return onAuthStateChanged(auth, async (u) => {
-      if (u && (!u.email || u.isAnonymous)) {
-        await auth.signOut();
-        setUser(null);
-        setView("login");
-        return;
-      }
-      setUser(u);
-      if (!u) {
-        setView("login");
-        setUserData(null);
-      } else {
-        const userRef = doc(db, "users", u.uid);
-        const snap = await getDoc(userRef);
-        if (!snap.exists()) {
-          const isAdmin = u.email === ADMIN_EMAIL;
-          await setDoc(userRef, {
-            email: u.email,
-            displayName: u.email.split("@")[0],
-            role: isAdmin ? "admin" : "user",
-            points: isAdmin ? 9999 : 0,
-            balance_cents: 0,
-            created_at: serverTimestamp(),
-            setup_complete: false,
-          });
-        }
-      }
-    });
-  }, []);
-
-  // 3. USER DATA
+  // 3. DATA
   useEffect(() => {
     if (!user) return;
-    const unsub = onSnapshot(doc(db, "users", user.uid), (s) => {
-      if (s.exists()) {
-        const data = s.data();
-        setUserData({ ...data, uid: user.uid });
-        if (data.setup_complete === false) setView("create_password");
-        else if (data.role === "admin") setView("admin");
-        else setView("app");
-      }
-    });
+    const unsub = onSnapshot(collection(db, "products"), (s) =>
+      setProducts(s.docs.map((d) => ({ id: d.id, ...d.data() })))
+    );
     return () => unsub();
   }, [user]);
 
-  // CATALOG
-  useEffect(() => {
-    if (!user) return;
-    return onSnapshot(collection(db, "products"), (s) =>
-      setProducts(s.docs.map((d) => ({ id: d.id, ...d.data() })))
-    );
-  }, [user]);
-
+  // ACTIONS
   const handleCreatePassword = async () => {
     if (newPassword.length < 6) return notify("6 caractères min !", "error");
     setPwdLoading(true);
     try {
       await updatePassword(user, newPassword);
       await updateDoc(doc(db, "users", user.uid), { setup_complete: true });
-      notify("Compte finalisé ! Bienvenue.", "success");
+      notify("Compte finalisé !", "success");
     } catch (e) {
       notify(e.message, "error");
     } finally {
@@ -165,7 +122,6 @@ export default function App() {
     await auth.signOut();
     setCart([]);
     setTab("catalog");
-    setView("login");
   };
 
   const createOrder = async () => {
@@ -185,7 +141,7 @@ export default function App() {
     };
     await addDoc(collection(db, "orders"), orderData);
     setCart([]);
-    setTab("pass"); // Redirection vers le Pass
+    setTab("pass");
     notify("Commande créée !", "success");
   };
 
@@ -205,6 +161,7 @@ export default function App() {
       payment_simulated: true,
       points_earned: totalCents / 100,
     });
+    // Ajout des points
     const prevPts = Number(userDataRef.current?.points || 0);
     await updateDoc(doc(db, "users", user.uid), {
       points: prevPts + totalCents / 100,
@@ -221,17 +178,9 @@ export default function App() {
     notify("Vendeur notifié.", "info");
   };
 
-  // --- RENDU ---
-
-  if (view === "loading")
-    return (
-      <div className="h-screen flex items-center justify-center text-teal-700 font-bold">
-        <RefreshCw className="animate-spin mr-2" /> Chargement...
-      </div>
-    );
+  // RENDU
   if (view === "login") return <LoginScreen />;
 
-  // Écran spécial : Demande email si retour lien magique sur autre appareil
   if (emailPrompt) {
     return (
       <div className="h-screen flex flex-col items-center justify-center p-6 bg-white">
@@ -249,20 +198,15 @@ export default function App() {
 
   if (view === "create_password") {
     return (
-      <div className="h-screen flex flex-col items-center justify-center p-6 bg-white font-sans text-center">
-        <div className="bg-green-100 p-4 rounded-full mb-4 text-green-700">
-          <Check size={48} />
-        </div>
+      <div className="h-screen flex flex-col items-center justify-center p-6 bg-white text-center">
         <h1 className="text-2xl font-black text-gray-800 mb-2">
           Compte validé !
         </h1>
-        <p className="text-gray-500 mb-8">
-          Choisis un mot de passe pour tes prochaines connexions.
-        </p>
+        <p className="text-gray-500 mb-8">Choisis un mot de passe.</p>
         <div className="w-full max-w-sm space-y-4">
           <input
             type="password"
-            className="w-full p-4 bg-gray-50 rounded-xl border focus:border-teal-500 outline-none font-bold"
+            className="w-full p-4 bg-gray-50 rounded-xl border font-bold"
             placeholder="Nouveau mot de passe"
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
@@ -270,7 +214,7 @@ export default function App() {
           <Button
             onClick={handleCreatePassword}
             disabled={pwdLoading}
-            className="w-full bg-green-600 hover:bg-green-700"
+            className="w-full"
           >
             {pwdLoading ? "..." : "TERMINER"}
           </Button>
@@ -293,7 +237,6 @@ export default function App() {
 
   return (
     <div className="h-screen flex flex-col bg-gray-50 max-w-md mx-auto relative font-sans text-gray-800">
-      {/* Toast & Modal globaux */}
       {toast && (
         <Toast
           msg={toast.msg}
@@ -347,17 +290,13 @@ export default function App() {
         {tab === "cart" && (
           <Cart cart={cart} setCart={setCart} onValidate={createOrder} />
         )}
-
-        {/* NOUVEAU PASS SCREEN (qui gère OrderFlow en interne) */}
         {tab === "pass" && (
           <PassScreen
-            user={userData}
             db={db}
-            onPay={(m) => payOrder(m, currentOrder)} // On passera l'ordre spécifique dans PassScreen
-            onRequestCash={() => requestCashPayment(currentOrder)}
+            onPay={payOrder} // ✅ CORRIGÉ : On passe la fonction directement
+            onRequestCash={requestCashPayment} // ✅ CORRIGÉ
           />
         )}
-
         {tab === "loyalty" && (
           <LoyaltyScreen
             user={userData}
@@ -368,7 +307,6 @@ export default function App() {
             onConfirm={confirmAction}
           />
         )}
-
         {tab === "profile" && (
           <Profile
             user={userData}
