@@ -20,159 +20,56 @@ import {
   X,
   Flashlight,
 } from "lucide-react";
+import QrScanner from "qr-scanner";
+import qrWorkerUrl from "qr-scanner/qr-scanner-worker.min.js?url";
+
 import { SEED_PRODUCTS } from "../../data/seedProducts.js";
 import { formatPrice } from "../../lib/format.js";
 
+// ✅ Worker path pour Vite
+QrScanner.WORKER_PATH = qrWorkerUrl;
+
 function ScannerModal({ open, onClose, onScan }) {
   const videoRef = useRef(null);
-  const streamRef = useRef(null);
-  const rafRef = useRef(null);
+  const scannerRef = useRef(null);
 
   const [error, setError] = useState("");
   const [torchSupported, setTorchSupported] = useState(false);
   const [torchOn, setTorchOn] = useState(false);
 
+  const normalizeToken = (raw) => {
+    if (!raw) return "";
+    const s = String(raw).trim();
+    if (s.includes("http://") || s.includes("https://")) {
+      const last = s.split("/").filter(Boolean).pop() || s;
+      return last.trim().toUpperCase();
+    }
+    return s.toUpperCase();
+  };
+
   const stop = async () => {
-    if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    rafRef.current = null;
-
     try {
-      if (videoRef.current) videoRef.current.srcObject = null;
-    } catch {}
-
-    try {
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((t) => t.stop());
+      if (scannerRef.current) {
+        scannerRef.current.stop();
+        scannerRef.current.destroy?.();
+        scannerRef.current = null;
       }
     } catch {}
-
-    streamRef.current = null;
     setTorchSupported(false);
     setTorchOn(false);
   };
 
   const toggleTorch = async () => {
     try {
-      const stream = streamRef.current;
-      if (!stream) return;
-      const track = stream.getVideoTracks?.()[0];
-      if (!track) return;
-
-      const caps = track.getCapabilities?.();
-      if (!caps?.torch) return;
-
-      const next = !torchOn;
-      await track.applyConstraints({ advanced: [{ torch: next }] });
-      setTorchOn(next);
-    } catch {
-      // Silence: certains navigateurs refusent même si "torch" existe
-    }
-  };
-
-  const normalizeToken = (raw) => {
-    if (!raw) return "";
-    const s = String(raw).trim();
-
-    // Si jamais le QR contient une URL, on prend le dernier segment
-    if (s.includes("http://") || s.includes("https://")) {
-      const last = s.split("/").filter(Boolean).pop() || s;
-      return last.trim().toUpperCase();
-    }
-
-    // Sinon, direct (ex: X9Y2)
-    return s.toUpperCase();
-  };
-
-  const scanLoop = async () => {
-    try {
-      const video = videoRef.current;
-      if (!video) return;
-
-      // BarcodeDetector (QR)
-      // eslint-disable-next-line no-undef
-      const BarcodeDetectorImpl = window.BarcodeDetector;
-      if (!BarcodeDetectorImpl) {
-        setError(
-          "Scan QR non supporté sur ce navigateur. Utilise Chrome ou saisis le code."
-        );
-        return;
-      }
-
-      // eslint-disable-next-line no-undef
-      const detector = new BarcodeDetectorImpl({ formats: ["qr_code"] });
-
-      const tick = async () => {
-        try {
-          if (!videoRef.current || video.readyState < 2) {
-            rafRef.current = requestAnimationFrame(tick);
-            return;
-          }
-
-          const codes = await detector.detect(video);
-          if (codes && codes.length) {
-            const raw = codes[0].rawValue;
-            const token = normalizeToken(raw);
-            if (token) {
-              onScan(token);
-              await stop();
-              onClose();
-              return;
-            }
-          }
-        } catch {
-          // ignore frame errors
-        }
-        rafRef.current = requestAnimationFrame(tick);
-      };
-
-      rafRef.current = requestAnimationFrame(tick);
-    } catch {
-      setError(
-        "Impossible de lancer le scanner. Autorise la caméra et réessaie."
-      );
-    }
-  };
-
-  const start = async () => {
-    setError("");
-
-    try {
-      if (!navigator.mediaDevices?.getUserMedia) {
-        setError("Caméra non disponible sur ce navigateur.");
-        return;
-      }
-
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: "environment" }, // caméra arrière
-        },
-        audio: false,
-      });
-
-      streamRef.current = stream;
-
-      const video = videoRef.current;
-      if (video) {
-        video.srcObject = stream;
-        video.setAttribute("playsinline", "true"); // iOS
-        await video.play();
-      }
-
-      // Torch support (si dispo)
-      try {
-        const track = stream.getVideoTracks?.()[0];
-        const caps = track?.getCapabilities?.();
-        setTorchSupported(!!caps?.torch);
-      } catch {
-        setTorchSupported(false);
-      }
-
-      await scanLoop();
-    } catch {
-      setError(
-        "Accès caméra refusé ou indisponible. Autorise la caméra dans le navigateur."
-      );
-    }
+      const sc = scannerRef.current;
+      if (!sc) return;
+      const has = await sc.hasFlash?.();
+      if (!has) return;
+      await sc.toggleFlash?.();
+      const isOn = await sc.isFlashOn?.();
+      if (typeof isOn === "boolean") setTorchOn(isOn);
+      else setTorchOn((v) => !v);
+    } catch {}
   };
 
   useEffect(() => {
@@ -181,7 +78,61 @@ function ScannerModal({ open, onClose, onScan }) {
       setError("");
       return;
     }
-    start();
+
+    (async () => {
+      setError("");
+
+      // ⚠️ Caméra sur mobile = HTTPS obligatoire (sauf localhost)
+      if (!window.isSecureContext) {
+        setError(
+          "Caméra bloquée : il faut ouvrir le site en HTTPS sur mobile (sauf localhost). " +
+            "En démo, héberge-le (Firebase Hosting / Vercel / Netlify) et ça marchera."
+        );
+        return;
+      }
+
+      try {
+        const video = videoRef.current;
+        if (!video) return;
+
+        const scanner = new QrScanner(
+          video,
+          (result) => {
+            const raw = typeof result === "string" ? result : result?.data;
+            const token = normalizeToken(raw);
+            if (token) {
+              onScan(token); // ✅ remplit le champ
+              onClose(); // ✅ ferme automatiquement
+            }
+          },
+          {
+            preferredCamera: "environment",
+            highlightScanRegion: true,
+            highlightCodeOutline: true,
+            maxScansPerSecond: 8,
+          }
+        );
+
+        scannerRef.current = scanner;
+        await scanner.start();
+
+        // Flash si dispo
+        try {
+          const has = await scanner.hasFlash?.();
+          setTorchSupported(!!has);
+          if (has) {
+            const isOn = await scanner.isFlashOn?.();
+            if (typeof isOn === "boolean") setTorchOn(isOn);
+          }
+        } catch {
+          setTorchSupported(false);
+        }
+      } catch (e) {
+        setError(
+          "Impossible de lancer la caméra. Autorise la caméra dans le navigateur, et vérifie que tu es bien en HTTPS."
+        );
+      }
+    })();
 
     return () => {
       stop();
@@ -213,7 +164,13 @@ function ScannerModal({ open, onClose, onScan }) {
 
         <div className="p-3">
           <div className="relative rounded-2xl overflow-hidden bg-black">
-            <video ref={videoRef} className="w-full h-[320px] object-cover" />
+            <video
+              ref={videoRef}
+              className="w-full h-[340px] object-cover"
+              muted
+              playsInline
+            />
+
             {/* cadre */}
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
               <div className="w-56 h-56 rounded-2xl border-2 border-white/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.25)]" />
@@ -246,18 +203,14 @@ function ScannerModal({ open, onClose, onScan }) {
 
           <div className="mt-3 flex gap-2">
             <button
-              onClick={() => {
-                setError("");
-                stop().then(start);
-              }}
-              className="flex-1 bg-gray-900 text-white py-3 rounded-xl font-black"
-            >
-              Relancer
-            </button>
-            <button
               onClick={async () => {
-                await stop();
-                onClose();
+                try {
+                  await stop();
+                } finally {
+                  // relance simplement en fermant/ouvrant
+                  onClose();
+                  setTimeout(() => onScan(""), 0);
+                }
               }}
               className="flex-1 bg-white border border-gray-200 py-3 rounded-xl font-black text-gray-800"
             >
@@ -275,16 +228,12 @@ export default function AdminDashboard({ db, products, onLogout }) {
 
   const [orders, setOrders] = useState([]);
   const [scanInput, setScanInput] = useState("");
-  const [adminTab, setAdminTab] = useState("orders"); // orders | history | stock
-
-  // Scanner
+  const [adminTab, setAdminTab] = useState("orders");
   const [scannerOpen, setScannerOpen] = useState(false);
 
-  // Historique filters
-  const [historyFilter, setHistoryFilter] = useState("all"); // all | paid | served
+  const [historyFilter, setHistoryFilter] = useState("all");
   const [historyQuery, setHistoryQuery] = useState("");
 
-  // Stock filters
   const [stockQuery, setStockQuery] = useState("");
 
   const ordersRef = useRef([]);
@@ -351,7 +300,7 @@ export default function AdminDashboard({ db, products, onLogout }) {
     }).format(new Date(ms));
   };
 
-  const handleScan = async () => {
+  const handleValidate = async () => {
     await expireOrdersNow();
 
     const token = scanInput.trim().toUpperCase();
@@ -397,7 +346,6 @@ export default function AdminDashboard({ db, products, onLogout }) {
     alert("✅ Stock réinitialisé !");
   };
 
-  // ---- Orders: Active (created/scanned/paid) ----
   const activeOrders = useMemo(() => {
     return orders
       .filter((o) => o.status !== "expired")
@@ -406,10 +354,8 @@ export default function AdminDashboard({ db, products, onLogout }) {
       .filter((o) => ["created", "scanned", "paid"].includes(o.status));
   }, [orders]);
 
-  // ---- History: paid + served ----
   const historyOrders = useMemo(() => {
     const q = historyQuery.trim().toUpperCase();
-
     return orders
       .filter((o) => o.status !== "expired")
       .filter((o) =>
@@ -417,25 +363,23 @@ export default function AdminDashboard({ db, products, onLogout }) {
           ? ["paid", "served"].includes(o.status)
           : o.status === historyFilter
       )
-      .filter((o) => {
-        if (!q) return true;
-        return String(o.qr_token || "")
-          .toUpperCase()
-          .includes(q);
-      });
+      .filter((o) =>
+        !q
+          ? true
+          : String(o.qr_token || "")
+              .toUpperCase()
+              .includes(q)
+      );
   }, [orders, historyFilter, historyQuery]);
 
-  // ---- Stock list ----
   const stockList = useMemo(() => {
     const q = stockQuery.trim().toLowerCase();
     const list = [...(products || [])];
-
     list.sort(
       (a, b) =>
         (a.category || "").localeCompare(b.category || "") ||
         (a.name || "").localeCompare(b.name || "")
     );
-
     return list.filter((p) => {
       if (!q) return true;
       return (
@@ -481,7 +425,7 @@ export default function AdminDashboard({ db, products, onLogout }) {
       <ScannerModal
         open={scannerOpen}
         onClose={() => setScannerOpen(false)}
-        onScan={(token) => setScanInput(token)}
+        onScan={(token) => token && setScanInput(token)}
       />
 
       <div className="flex justify-between items-center mb-4 gap-3">
@@ -491,7 +435,6 @@ export default function AdminDashboard({ db, products, onLogout }) {
           <button
             onClick={seed}
             className="bg-red-600 text-white px-3 py-2 rounded-xl text-xs font-bold shadow-md hover:bg-red-700"
-            title="Réinitialiser le stock"
           >
             🗑️ Reset stock
           </button>
@@ -499,7 +442,6 @@ export default function AdminDashboard({ db, products, onLogout }) {
           <button
             onClick={onLogout}
             className="bg-white border border-gray-200 text-gray-800 px-3 py-2 rounded-xl text-xs font-bold shadow-sm hover:bg-gray-50 flex items-center gap-2"
-            title="Se déconnecter"
           >
             <LogOut size={16} /> Déconnexion
           </button>
@@ -512,7 +454,6 @@ export default function AdminDashboard({ db, products, onLogout }) {
         <TabBtn id="stock" icon={Package} label="Stock" />
       </div>
 
-      {/* -------- TAB: ORDERS -------- */}
       {adminTab === "orders" && (
         <>
           <div className="bg-white p-6 rounded-2xl shadow-sm mb-6 border-2 border-teal-600">
@@ -520,18 +461,18 @@ export default function AdminDashboard({ db, products, onLogout }) {
               <Camera className="text-teal-600" /> Scanner code client
             </h2>
             <p className="text-xs text-gray-500 mb-4 flex items-center gap-2">
-              <Clock size={14} /> Les commandes non terminées expirent au bout
-              de {Math.round(ORDER_TTL_MS / 60000)} min.
+              <Clock size={14} /> Expire après{" "}
+              {Math.round(ORDER_TTL_MS / 60000)} min si non terminé.
             </p>
 
-            {/* ✅ Layout mobile correct : champ + cam en ligne, bouton VALIDER en dessous */}
+            {/* ✅ bouton VALIDER bien placé sur mobile */}
             <div className="flex flex-col sm:flex-row gap-3">
               <div className="flex gap-2 flex-1">
                 <button
                   onClick={() => setScannerOpen(true)}
                   className="shrink-0 bg-teal-700 hover:bg-teal-800 text-white w-14 h-14 rounded-xl font-bold shadow-lg active:scale-95 transition-all flex items-center justify-center"
                   aria-label="Ouvrir la caméra"
-                  title="Ouvrir la caméra"
+                  title="Scanner QR"
                 >
                   <Camera />
                 </button>
@@ -541,13 +482,11 @@ export default function AdminDashboard({ db, products, onLogout }) {
                   onChange={(e) => setScanInput(e.target.value.toUpperCase())}
                   placeholder="CODE (ex: X9Y2)"
                   className="flex-1 p-4 h-14 border-2 border-gray-200 rounded-xl font-mono text-center text-xl tracking-widest outline-none focus:border-teal-500 uppercase"
-                  inputMode="text"
-                  autoCapitalize="characters"
                 />
               </div>
 
               <button
-                onClick={handleScan}
+                onClick={handleValidate}
                 className="bg-teal-700 hover:bg-teal-800 text-white h-14 w-full sm:w-auto px-6 rounded-xl font-black shadow-lg active:scale-95 transition-all"
               >
                 VALIDER
@@ -556,7 +495,7 @@ export default function AdminDashboard({ db, products, onLogout }) {
           </div>
 
           <h3 className="font-bold text-gray-400 uppercase text-xs mb-3">
-            Flux Commandes (en cours)
+            Flux Commandes
           </h3>
 
           <div className="space-y-3">
@@ -584,13 +523,11 @@ export default function AdminDashboard({ db, products, onLogout }) {
                         À Scanner
                       </span>
                     )}
-
                     {o.status === "scanned" && (
                       <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase animate-pulse">
                         En paiement...
                       </span>
                     )}
-
                     {o.status === "paid" && (
                       <span className="bg-green-600 text-white px-2 py-0.5 rounded text-[10px] font-bold uppercase animate-pulse">
                         💰 PAYÉ
@@ -626,7 +563,6 @@ export default function AdminDashboard({ db, products, onLogout }) {
         </>
       )}
 
-      {/* -------- TAB: HISTORY -------- */}
       {adminTab === "history" && (
         <>
           <div className="bg-white p-4 rounded-2xl shadow-sm mb-4 border border-gray-200 flex flex-col gap-3">
@@ -648,15 +584,7 @@ export default function AdminDashboard({ db, products, onLogout }) {
                 className="flex-1 p-3 rounded-xl border border-gray-200 bg-white font-mono text-sm outline-none"
               />
             </div>
-
-            <p className="text-xs text-gray-500">
-              Historique = commandes validées (paid) et/ou finalisées (served).
-            </p>
           </div>
-
-          <h3 className="font-bold text-gray-400 uppercase text-xs mb-3">
-            Historique
-          </h3>
 
           <div className="space-y-3">
             {historyOrders.map((o) => (
@@ -696,31 +624,23 @@ export default function AdminDashboard({ db, products, onLogout }) {
 
             {historyOrders.length === 0 && (
               <p className="text-center text-gray-400 italic py-6">
-                Aucune commande dans l’historique
+                Aucune commande
               </p>
             )}
           </div>
         </>
       )}
 
-      {/* -------- TAB: STOCK -------- */}
       {adminTab === "stock" && (
         <>
           <div className="bg-white p-4 rounded-2xl shadow-sm mb-4 border border-gray-200">
             <input
               value={stockQuery}
               onChange={(e) => setStockQuery(e.target.value)}
-              placeholder="Rechercher un produit (nom / catégorie)"
+              placeholder="Rechercher un produit"
               className="w-full p-3 rounded-xl border border-gray-200 bg-white text-sm outline-none"
             />
-            <p className="text-xs text-gray-500 mt-3">
-              Toggle “En stock / Rupture” = live sur le site client.
-            </p>
           </div>
-
-          <h3 className="font-bold text-gray-400 uppercase text-xs mb-3">
-            Produits
-          </h3>
 
           <div className="space-y-3">
             {stockList.map((p) => {
@@ -754,7 +674,7 @@ export default function AdminDashboard({ db, products, onLogout }) {
 
                   <div className="mt-3 flex items-center gap-2">
                     <span className="text-xs text-gray-500 font-bold">
-                      Quantité (optionnel)
+                      Quantité
                     </span>
                     <input
                       type="number"
@@ -771,12 +691,6 @@ export default function AdminDashboard({ db, products, onLogout }) {
                 </div>
               );
             })}
-
-            {stockList.length === 0 && (
-              <p className="text-center text-gray-400 italic py-6">
-                Aucun produit
-              </p>
-            )}
           </div>
         </>
       )}
