@@ -1,11 +1,5 @@
 import React, { useEffect, useState } from "react";
-import {
-  collection,
-  query,
-  where,
-  orderBy,
-  onSnapshot,
-} from "firebase/firestore";
+import { collection, query, where, onSnapshot } from "firebase/firestore";
 import {
   Ticket,
   ShoppingBag,
@@ -16,52 +10,61 @@ import {
 } from "lucide-react";
 import OrderFlow from "./OrderFlow.jsx";
 import { formatPrice } from "../../lib/format.js";
-import { useAuth } from "../../context/AuthContext.jsx"; // ✅ Utilisation du contexte
+import { useAuth } from "../../context/AuthContext.jsx";
 
 export default function PassScreen({ db, onPay, onRequestCash }) {
-  const { userData: user } = useAuth(); // ✅ Récupération directe de l'user
+  const { userData: user } = useAuth();
   const [orders, setOrders] = useState([]);
   const [selectedOrder, setSelectedOrder] = useState(null);
 
   useEffect(() => {
     if (!user?.uid) return;
 
-    const q = query(
-      collection(db, "orders"),
-      where("user_id", "==", user.uid),
-      where("status", "in", [
-        "created",
-        "scanned",
-        "cash",
-        "paid",
-        "reward_pending",
-      ]),
-      orderBy("created_at", "desc")
-    );
+    // 1. REQUÊTE SIMPLIFIÉE (Pour éviter les bugs d'index Firestore)
+    // On ne demande que les commandes de l'utilisateur, sans tri complexe côté serveur.
+    const q = query(collection(db, "orders"), where("user_id", "==", user.uid));
 
     const unsub = onSnapshot(
       q,
       (s) => {
-        setOrders(s.docs.map((d) => ({ id: d.id, ...d.data() })));
+        // 2. TRI ET FILTRE CÔTÉ CLIENT (JavaScript) -> C'est instantané
+        const loadedOrders = s.docs
+          .map((d) => ({ id: d.id, ...d.data() }))
+          // On garde seulement les statuts actifs
+          .filter((o) =>
+            ["created", "scanned", "cash", "paid", "reward_pending"].includes(
+              o.status
+            )
+          )
+          // On trie par date (le plus récent en haut)
+          .sort((a, b) => {
+            const tA = a.created_at?.toMillis ? a.created_at.toMillis() : 0;
+            const tB = b.created_at?.toMillis ? b.created_at.toMillis() : 0;
+            return tB - tA;
+          });
+
+        setOrders(loadedOrders);
       },
       (error) => {
-        console.error("Erreur index ou permission :", error);
+        console.error("Erreur temps réel PassScreen :", error);
       }
     );
 
     return () => unsub();
   }, [user, db]);
 
-  // Si on clique sur une commande, on affiche son détail (OrderFlow)
+  // Si on clique sur une commande, on affiche son détail
   if (selectedOrder) {
+    // On s'assure que l'order affiché est bien à jour avec les données du live
+    const liveOrder =
+      orders.find((o) => o.id === selectedOrder.id) || selectedOrder;
+
     return (
       <OrderFlow
-        order={selectedOrder}
+        order={liveOrder}
         user={user}
-        // ✅ C'est ici la modification cruciale :
-        // On passe à App.jsx la méthode de paiement ET la commande concernée
-        onPay={(method) => onPay(method, selectedOrder)}
-        onRequestCash={() => onRequestCash(selectedOrder)}
+        onPay={(method) => onPay(method, liveOrder)}
+        onRequestCash={() => onRequestCash(liveOrder)}
         onClose={() => setSelectedOrder(null)}
       />
     );

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   doc,
   collection,
@@ -13,17 +13,15 @@ const COST_ROULETTE = 5;
 const COST_STD = 10;
 const COST_REDBULL = 12;
 
-// --- CONFIGURATION ROULETTE PIXEL PERFECT ---
-const CARD_WIDTH = 128; // px
-const GAP = 8; // px
+// --- CONFIGURATION ROULETTE ---
+const CARD_WIDTH = 128; // px (w-32)
+const GAP = 8; // px (gap-2)
 const ITEM_FULL_WIDTH = CARD_WIDTH + GAP;
-const WINNER_INDEX = 30; // On arrête toujours au 30ème item
-const TOTAL_ITEMS = 35;
+const WINNER_INDEX = 30; // Index fixe du gagnant
+const TOTAL_ITEMS = 35; // Nombre total d'items dans la bande
 
-// Fonction Helper pure pour le tirage aléatoire pondéré
 const pickRandomWeighted = (pool) => {
   if (!pool || pool.length === 0) return null;
-  // On inverse le prix pour le poids : moins c'est cher, plus c'est probable
   const itemsWithWeight = pool.map((p) => ({
     ...p,
     weight: 1000 / (Number(p.price_cents) || 100),
@@ -50,8 +48,57 @@ export default function LoyaltyScreen({
 }) {
   const [spinning, setSpinning] = useState(false);
   const [rouletteItems, setRouletteItems] = useState([]);
+  const [winner, setWinner] = useState(null);
+
   const containerRef = useRef(null);
   const stripRef = useRef(null);
+
+  // --- EFFET D'ANIMATION ---
+  // Se déclenche automatiquement dès que 'rouletteItems' est rempli et 'spinning' est vrai
+  useEffect(() => {
+    if (!spinning || rouletteItems.length === 0 || !winner) return;
+
+    const strip = stripRef.current;
+    if (!strip) return;
+
+    // 1. Reset position (sans transition pour l'instant)
+    strip.style.transition = "none";
+    strip.style.transform = "translateX(0px)";
+
+    // 2. Force le navigateur à recalculer (Reflow) pour bien prendre en compte le reset
+    // eslint-disable-next-line no-unused-expressions
+    strip.offsetHeight;
+
+    // 3. Calcul de la destination
+    const containerW = containerRef.current?.clientWidth || 0;
+    // On centre la carte gagnante (WINNER_INDEX) au milieu du conteneur
+    const centerTarget = WINNER_INDEX * ITEM_FULL_WIDTH + CARD_WIDTH / 2;
+    const translateX = centerTarget - containerW / 2;
+
+    // Petit aléatoire pour le réalisme (ne tombe jamais au pixel près au centre)
+    const jitter = Math.floor(Math.random() * 40) - 20;
+
+    // 4. Lancement de l'animation
+    requestAnimationFrame(() => {
+      strip.style.transition =
+        "transform 5.5s cubic-bezier(0.15, 0.85, 0.25, 1)";
+      strip.style.transform = `translateX(-${translateX + jitter}px)`;
+    });
+
+    // 5. Timer de fin
+    const timer = setTimeout(() => {
+      setSpinning(false);
+      onConfirm({
+        title: "C'est gagné ! 🎉",
+        text: `Tu as remporté : ${winner.name}. Ton coupon est déjà sécurisé dans ton Pass.`,
+        confirmText: "Voir mon Pass",
+        cancelText: "Rejouer",
+        onOk: onGoToPass,
+      });
+    }, 6000); // 6s pour être sûr que l'anim de 5.5s est finie
+
+    return () => clearTimeout(timer);
+  }, [spinning, rouletteItems, winner, onConfirm, onGoToPass]);
 
   const spin = async () => {
     if (spinning) return;
@@ -62,24 +109,21 @@ export default function LoyaltyScreen({
     const pool = (products || []).filter((p) => p.is_available !== false);
     if (!pool.length) return notify("Stock vide !", "error");
 
-    setSpinning(true); // Bloque le bouton immédiatement
+    setSpinning(true);
+    setRouletteItems([]); // On vide la liste pour forcer un "reset" visuel si besoin
+    setWinner(null);
 
     try {
-      // 1. Déterminer le gagnant à l'avance
+      // 1. Tirage au sort
       const winnerItem = pickRandomWeighted(pool);
+      setWinner(winnerItem);
 
-      // 2. Préparer la transaction (Batch) pour atomicité
-      // On déduit les points ET on crée le coupon EN MÊME TEMPS avant l'animation.
-      // Si l'app plante pendant l'animation, le coupon sera déjà dans "Mon Pass".
+      // 2. Transaction sécurisée (Points + Coupon)
       const batch = writeBatch(db);
 
-      // A. Déduction des points
       const userRef = doc(db, "users", user.uid);
-      const newPoints = user.points - COST_ROULETTE;
-      batch.update(userRef, { points: newPoints });
+      batch.update(userRef, { points: user.points - COST_ROULETTE });
 
-      // B. Création du coupon
-      // On génère l'ID manuellement pour pouvoir l'utiliser dans le batch
       const couponRef = doc(collection(db, "orders"));
       const couponData = {
         user_id: user.uid,
@@ -95,57 +139,17 @@ export default function LoyaltyScreen({
       };
       batch.set(couponRef, couponData);
 
-      // C. Exécution de la sauvegarde
       await batch.commit();
 
-      // 3. Construire la bande visuelle pour l'animation
+      // 3. Préparation de la bande visuelle
       const strip = [];
       for (let i = 0; i < TOTAL_ITEMS; i++) {
-        // Le gagnant est FORCÉ à l'index WINNER_INDEX
         if (i === WINNER_INDEX) strip.push({ ...winnerItem, isWinner: true });
         else strip.push({ ...pickRandomWeighted(pool), isWinner: false });
       }
+
+      // 4. Mise à jour de l'état -> Cela va déclencher le useEffect ci-dessus
       setRouletteItems(strip);
-
-      // 4. Lancer l'animation (Logique purement visuelle maintenant)
-      if (stripRef.current) {
-        stripRef.current.style.transition = "none";
-        stripRef.current.style.transform = "translateX(0px)";
-      }
-
-      // Hack pour forcer le reflow avant de lancer la transition
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          if (stripRef.current && containerRef.current) {
-            const containerW = containerRef.current.clientWidth;
-            // Centre carte gagnante = (WINNER_INDEX * ITEM_FULL_WIDTH) + (CARD_WIDTH / 2)
-            const centerTarget =
-              WINNER_INDEX * ITEM_FULL_WIDTH + CARD_WIDTH / 2;
-            const translateX = centerTarget - containerW / 2;
-
-            // Petit décalage aléatoire réaliste (+/- 20px)
-            const jitter = Math.floor(Math.random() * 40) - 20;
-
-            stripRef.current.style.transition =
-              "transform 5s cubic-bezier(0.15, 0.85, 0.25, 1)"; // Easing réaliste
-            stripRef.current.style.transform = `translateX(-${
-              translateX + jitter
-            }px)`;
-          }
-        });
-      });
-
-      // 5. Fin de l'animation : Affichage du résultat
-      setTimeout(() => {
-        setSpinning(false);
-        onConfirm({
-          title: "C'est gagné ! 🎉",
-          text: `Tu as remporté : ${winnerItem.name}. Ton coupon est déjà sécurisé dans ton Pass.`,
-          confirmText: "Voir mon Pass",
-          cancelText: "Rejouer",
-          onOk: onGoToPass,
-        });
-      }, 5500);
     } catch (error) {
       console.error("Erreur roulette:", error);
       setSpinning(false);
@@ -239,9 +243,9 @@ export default function LoyaltyScreen({
             <div
               ref={stripRef}
               className="flex gap-2 will-change-transform pl-[50%]"
-              style={{ transform: "translateX(0px)" }}
+              // IMPORTANT : Pas de style transform ici pour ne pas écraser l'animation JS
             >
-              {(spinning || rouletteItems.length > 0
+              {(rouletteItems.length > 0
                 ? rouletteItems
                 : products.slice(0, 10)
               ).map((p, i) => {
