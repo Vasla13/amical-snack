@@ -21,6 +21,7 @@ import {
   X,
   Flashlight,
   Banknote,
+  Printer,
 } from "lucide-react";
 import QrScanner from "qr-scanner";
 import qrWorkerUrl from "qr-scanner/qr-scanner-worker.min.js?url";
@@ -30,81 +31,200 @@ import { formatPrice } from "../../lib/format.js";
 
 QrScanner.WORKER_PATH = qrWorkerUrl;
 
-function PaidPickList({ items }) {
-  const grouped = useMemo(() => {
-    const map = new Map();
-    (items || []).forEach((it) => {
-      const key =
-        it.id || it.product_id || it.name || Math.random().toString(36);
-      const prev = map.get(key);
-      if (prev) map.set(key, { ...prev, qty: (prev.qty || 0) + (it.qty || 0) });
-      else map.set(key, { ...it, qty: it.qty || 0 });
-    });
+function groupItems(items) {
+  const map = new Map();
+  (items || []).forEach((it) => {
+    const key = it.id || it.product_id || it.name || Math.random().toString(36);
+    const prev = map.get(key);
+    if (prev) map.set(key, { ...prev, qty: (prev.qty || 0) + (it.qty || 0) });
+    else map.set(key, { ...it, qty: it.qty || 0 });
+  });
+  const arr = Array.from(map.values());
+  arr.sort(
+    (a, b) =>
+      (b.qty || 0) - (a.qty || 0) ||
+      String(a.name || "").localeCompare(String(b.name || ""))
+  );
+  return arr;
+}
 
-    const arr = Array.from(map.values());
-    arr.sort(
-      (a, b) =>
-        (b.qty || 0) - (a.qty || 0) ||
-        String(a.name || "").localeCompare(String(b.name || ""))
-    );
-    return arr;
-  }, [items]);
+function methodLabel(method) {
+  const m = String(method || "");
+  if (m === "apple_pay") return "APPLE PAY";
+  if (m === "google_pay") return "ANDROID / GOOGLE PAY";
+  if (m === "paypal_balance") return "PAYPAL (SOLDE)";
+  if (m === "cash") return "ESPÈCES";
+  return "";
+}
 
+function openPrintTicket(order) {
+  const items = groupItems(order.items);
+  const now = new Date();
+  const dateStr = new Intl.DateTimeFormat("fr-FR", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(now);
+
+  const lines = items
+    .map((it) => {
+      const name = String(it.name || "")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+      const qty = Number(it.qty || 0);
+      const unit = formatPrice(Number(it.price_cents || 0));
+      const total = formatPrice(Number(it.price_cents || 0) * qty);
+      return `
+        <div class="row">
+          <div class="qty">${qty}x</div>
+          <div class="name">${name}</div>
+          <div class="unit">${unit}</div>
+          <div class="sum">${total}</div>
+        </div>
+      `;
+    })
+    .join("");
+
+  const html = `
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Ticket #${order.qr_token}</title>
+<style>
+  body { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; padding: 16px; }
+  .ticket { max-width: 380px; margin: 0 auto; border: 2px dashed #111; padding: 12px; }
+  .h1 { font-weight: 900; font-size: 18px; text-align:center; }
+  .meta { margin-top: 10px; font-size: 12px; color: #111; }
+  .meta div { display:flex; justify-content: space-between; gap: 10px; }
+  .sep { border-top: 1px dashed #111; margin: 10px 0; }
+  .row { display:grid; grid-template-columns: 42px 1fr 78px 78px; gap: 8px; align-items: baseline; font-size: 12px; }
+  .qty { font-weight: 900; font-size: 14px; }
+  .name { word-break: break-word; }
+  .unit, .sum { text-align:right; }
+  .total { display:flex; justify-content: space-between; font-size: 14px; font-weight: 900; }
+  .note { margin-top: 10px; font-size: 11px; color:#111; text-align:center; }
+  @media print { body { padding: 0; } .ticket { border: none; } }
+</style>
+</head>
+<body>
+  <div class="ticket">
+    <div class="h1">AMICALE R&T — TICKET</div>
+    <div class="meta">
+      <div><span>Commande</span><span>#${String(
+        order.qr_token || ""
+      )}</span></div>
+      <div><span>Date</span><span>${dateStr}</span></div>
+      <div><span>Paiement</span><span>${
+        methodLabel(order.payment_method) || "-"
+      }</span></div>
+    </div>
+    <div class="sep"></div>
+    ${lines}
+    <div class="sep"></div>
+    <div class="total">
+      <span>TOTAL</span>
+      <span>${formatPrice(Number(order.total_cents || 0))}</span>
+    </div>
+    <div class="note">Bon de commande / Ticket de caisse (démo)</div>
+  </div>
+<script>
+  window.focus();
+  window.print();
+</script>
+</body>
+</html>
+`;
+
+  const w = window.open(
+    "",
+    "_blank",
+    "noopener,noreferrer,width=480,height=720"
+  );
+  if (!w) return alert("Popup bloquée. Autorise les popups pour imprimer.");
+  w.document.open();
+  w.document.write(html);
+  w.document.close();
+}
+
+function TicketBon({ order }) {
+  const items = useMemo(() => groupItems(order.items), [order.items]);
   const totalQty = useMemo(
-    () => grouped.reduce((s, it) => s + (it.qty || 0), 0),
-    [grouped]
+    () => items.reduce((s, it) => s + (it.qty || 0), 0),
+    [items]
   );
 
-  if (!grouped.length) return null;
-
   return (
-    <div className="mt-3 rounded-xl border border-green-200 bg-green-50 p-3">
-      <div className="flex items-center justify-between mb-2">
-        <div className="text-xs font-black uppercase text-green-700">
-          Produits à donner
+    <div className="mt-3 rounded-2xl border border-gray-200 bg-white p-3">
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <div className="text-xs font-black uppercase text-gray-500">
+            Bon de commande
+          </div>
+          <div className="text-sm font-black text-gray-900">
+            #{order.qr_token} • {methodLabel(order.payment_method) || "—"}
+          </div>
         </div>
-        <div className="text-xs font-black text-green-800">
-          Total: <span className="text-base">{totalQty}</span>
-        </div>
+
+        <button
+          onClick={() => openPrintTicket(order)}
+          className="px-3 py-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 font-black text-xs flex items-center gap-2"
+        >
+          <Printer size={16} /> Imprimer
+        </button>
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
-        {grouped.map((it, idx) => (
-          <div
-            key={(it.id || it.name || "it") + "-" + idx}
-            className="relative overflow-hidden rounded-xl bg-white border border-green-200 shadow-sm"
-          >
-            <div className="absolute top-2 left-2 w-11 h-11 rounded-xl bg-green-600 text-white flex items-center justify-center font-black text-xl shadow-md">
-              {it.qty}
-            </div>
+      <div className="mt-2 text-xs text-gray-600 flex justify-between">
+        <span className="font-bold">Total articles</span>
+        <span className="font-black">{totalQty}</span>
+      </div>
 
-            <div className="h-24 w-full bg-white flex items-center justify-center p-2">
-              {it.image ? (
-                <img
-                  src={it.image}
-                  alt={it.name}
-                  className="h-full w-full object-contain mix-blend-multiply"
-                  onError={(e) => (e.currentTarget.style.display = "none")}
-                />
-              ) : (
-                <div className="text-[10px] text-gray-400 font-bold">
-                  NO IMAGE
+      <div className="mt-3 space-y-2">
+        {items.map((it, idx) => {
+          const qty = Number(it.qty || 0);
+          const unit = Number(it.price_cents || 0);
+          const sub = unit * qty;
+
+          return (
+            <div
+              key={(it.id || it.name || "it") + "-" + idx}
+              className="flex items-center justify-between gap-3 rounded-xl border border-gray-100 bg-gray-50 p-3"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-14 h-14 rounded-2xl bg-gray-900 text-white flex items-center justify-center font-black text-2xl">
+                  {qty}
                 </div>
-              )}
-            </div>
-
-            <div className="px-2 pb-2">
-              <div className="text-xs font-black text-gray-900 line-clamp-2 leading-tight">
-                {it.name}
+                <div className="min-w-0">
+                  <div className="font-black text-gray-900 truncate">
+                    {it.name}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    {formatPrice(unit)} / unité
+                  </div>
+                </div>
               </div>
-              <div className="text-[11px] text-gray-500 font-bold mt-1">
-                {formatPrice((it.price_cents || 0) * (it.qty || 0))}
+
+              <div className="text-right">
+                <div className="font-black text-gray-900">
+                  {formatPrice(sub)}
+                </div>
+                <div className="text-[10px] uppercase font-bold text-gray-500">
+                  sous-total
+                </div>
               </div>
             </div>
+          );
+        })}
+      </div>
 
-            <div className="absolute -right-10 top-6 rotate-45 bg-green-600/15 w-40 h-8" />
-          </div>
-        ))}
+      <div className="mt-3 rounded-xl bg-gray-900 text-white p-3 flex items-center justify-between">
+        <div className="font-black">TOTAL</div>
+        <div className="font-black text-lg">
+          {formatPrice(Number(order.total_cents || 0))}
+        </div>
       </div>
     </div>
   );
@@ -326,7 +446,6 @@ export default function AdminDashboard({ db, products, onLogout }) {
     return ts && typeof ts.toMillis === "function" ? ts.toMillis() : null;
   };
 
-  // ✅ cash aussi = en attente, donc expirable
   const isExpirableStatus = (status) =>
     status === "created" || status === "scanned" || status === "cash";
 
@@ -397,7 +516,6 @@ export default function AdminDashboard({ db, products, onLogout }) {
     await updateDoc(uref, { points: newPoints });
   };
 
-  // ✅ vendeur confirme encaissement cash → passe en paid + points
   const confirmCash = async (o) => {
     await updateDoc(doc(db, "orders", o.id), {
       status: "paid",
@@ -438,7 +556,6 @@ export default function AdminDashboard({ db, products, onLogout }) {
     alert("✅ Stock réinitialisé !");
   };
 
-  // ✅ cash inclus dans les commandes actives
   const activeOrders = useMemo(() => {
     return orders
       .filter((o) => o.status !== "expired")
@@ -512,26 +629,6 @@ export default function AdminDashboard({ db, products, onLogout }) {
       {label}
     </button>
   );
-
-  const methodChip = (method) => {
-    const m = String(method || "");
-    const label =
-      m === "apple_pay"
-        ? "APPLE PAY"
-        : m === "google_pay"
-        ? "ANDROID PAY"
-        : m === "paypal_balance"
-        ? "PAYPAL"
-        : m === "cash"
-        ? "ESPÈCES"
-        : "";
-    if (!label) return null;
-    return (
-      <span className="text-[10px] px-2 py-0.5 rounded font-black uppercase bg-gray-100 text-gray-700">
-        {label}
-      </span>
-    );
-  };
 
   return (
     <div className="min-h-screen bg-gray-100 p-4 font-sans">
@@ -632,7 +729,11 @@ export default function AdminDashboard({ db, products, onLogout }) {
                         {fmtTime(o)}
                       </span>
 
-                      {methodChip(o.payment_method)}
+                      {!!methodLabel(o.payment_method) && (
+                        <span className="text-[10px] px-2 py-0.5 rounded font-black uppercase bg-gray-100 text-gray-700">
+                          {methodLabel(o.payment_method)}
+                        </span>
+                      )}
 
                       {o.status === "created" && (
                         <span className="bg-gray-100 text-gray-500 px-2 py-0.5 rounded text-[10px] font-bold uppercase">
@@ -665,7 +766,6 @@ export default function AdminDashboard({ db, products, onLogout }) {
                     </p>
                   </div>
 
-                  {/* Actions */}
                   {o.status === "cash" ? (
                     <button
                       onClick={() => confirmCash(o)}
@@ -687,8 +787,8 @@ export default function AdminDashboard({ db, products, onLogout }) {
                   )}
                 </div>
 
-                {/* Pick list visible quand payée */}
-                {o.status === "paid" && <PaidPickList items={o.items} />}
+                {/* ✅ Ticket / bon de commande (sans images) */}
+                {o.status === "paid" && <TicketBon order={o} />}
               </div>
             ))}
 
@@ -738,7 +838,11 @@ export default function AdminDashboard({ db, products, onLogout }) {
                     <span className="text-[10px] px-2 py-0.5 rounded font-bold uppercase bg-gray-100 text-gray-600">
                       {fmtTime(o)}
                     </span>
-                    {methodChip(o.payment_method)}
+                    {!!methodLabel(o.payment_method) && (
+                      <span className="text-[10px] px-2 py-0.5 rounded font-black uppercase bg-gray-100 text-gray-700">
+                        {methodLabel(o.payment_method)}
+                      </span>
+                    )}
                   </div>
 
                   <span

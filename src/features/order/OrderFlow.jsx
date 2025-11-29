@@ -7,11 +7,12 @@ import {
   CheckCircle2,
   Hourglass,
   X,
+  Copy,
 } from "lucide-react";
+import { QRCodeCanvas } from "qrcode.react";
 import { formatPrice } from "../../lib/format.js";
 
 function detectMobileOS() {
-  // iOS / Android detection (robuste + fallback)
   const ua = navigator.userAgent || "";
   const platform =
     navigator.userAgentData?.platform || navigator.platform || "";
@@ -20,7 +21,6 @@ function detectMobileOS() {
   const isIOS =
     /iPhone|iPad|iPod/i.test(ua) ||
     /iOS/i.test(platform) ||
-    // iPadOS 13+ peut se présenter comme MacIntel
     (platform === "MacIntel" &&
       typeof navigator.maxTouchPoints === "number" &&
       navigator.maxTouchPoints > 1);
@@ -42,6 +42,12 @@ export default function OrderFlow({
 
   const { isIOS, isAndroid } = useMemo(detectMobileOS, []);
 
+  // ✅ Sur iPhone/iPad: seulement Apple Pay
+  // ✅ Sur Android: seulement Android/Google Pay
+  // ✅ Sur autre (PC): afficher les 2 (pratique pour tester)
+  const showApplePay = isIOS || (!isIOS && !isAndroid);
+  const showGooglePay = isAndroid || (!isIOS && !isAndroid);
+
   const itemsSummary = useMemo(() => {
     const list = order?.items || [];
     const map = new Map();
@@ -53,6 +59,27 @@ export default function OrderFlow({
     }
     return Array.from(map.values()).sort((a, b) => (b.qty || 0) - (a.qty || 0));
   }, [order?.items]);
+
+  const qrValue = useMemo(() => {
+    // ✅ On encode une URL, l’admin récupère le token (dernier segment)
+    // marche aussi si tu changes de domaine
+    const origin = window.location.origin;
+    return `${origin}/c/${order?.qr_token || ""}`;
+  }, [order?.qr_token]);
+
+  const copyCode = async () => {
+    try {
+      await navigator.clipboard.writeText(String(order?.qr_token || ""));
+    } catch {
+      // fallback
+      const t = document.createElement("textarea");
+      t.value = String(order?.qr_token || "");
+      document.body.appendChild(t);
+      t.select();
+      document.execCommand("copy");
+      document.body.removeChild(t);
+    }
+  };
 
   const pay = async (method) => {
     if (!order) return;
@@ -78,12 +105,6 @@ export default function OrderFlow({
 
   const status = order.status;
 
-  // ✅ Sur iPhone/iPad: seulement Apple Pay
-  // ✅ Sur Android: seulement Android/Google Pay
-  // ✅ Sur autre (PC, etc): on affiche les 2 (pratique pour tester)
-  const showApplePay = isIOS || (!isIOS && !isAndroid);
-  const showGooglePay = isAndroid || (!isIOS && !isAndroid);
-
   return (
     <div className="p-4">
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
@@ -92,9 +113,22 @@ export default function OrderFlow({
             <div className="text-xs font-bold uppercase text-gray-400">
               Commande
             </div>
-            <div className="font-black text-3xl tracking-widest font-mono text-gray-900">
-              #{order.qr_token}
+
+            <div className="mt-1 flex items-center gap-2">
+              <div className="font-black text-3xl tracking-widest font-mono text-gray-900">
+                #{order.qr_token}
+              </div>
+              <button
+                onClick={copyCode}
+                disabled={loading}
+                className="p-2 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-700"
+                aria-label="Copier le code"
+                title="Copier"
+              >
+                <Copy size={16} />
+              </button>
             </div>
+
             <div className="mt-1 text-sm text-gray-600 font-bold">
               Total :{" "}
               <span className="text-teal-700">{formatPrice(totalCents)}</span>
@@ -109,6 +143,22 @@ export default function OrderFlow({
           >
             <X />
           </button>
+        </div>
+
+        {/* ✅ QR CODE affiché */}
+        <div className="p-4 border-b border-gray-100">
+          <div className="text-xs font-black uppercase text-gray-400 mb-2">
+            QR Code
+          </div>
+          <div className="bg-gray-50 border border-gray-100 rounded-2xl p-4 flex items-center justify-center">
+            <div className="bg-white p-3 rounded-2xl border border-gray-200 shadow-sm">
+              <QRCodeCanvas value={qrValue} size={210} includeMargin />
+            </div>
+          </div>
+          <div className="mt-2 text-xs text-gray-500">
+            Montre ce QR au vendeur (il le scanne) ou donne le code :{" "}
+            <b>{order.qr_token}</b>
+          </div>
         </div>
 
         <div className="p-4">
@@ -142,7 +192,7 @@ export default function OrderFlow({
                 <Hourglass size={18} /> Attente du vendeur…
               </div>
               <div className="text-sm text-gray-600 mt-1">
-                Donne ton code au vendeur pour qu’il le valide.
+                Le vendeur doit scanner ton QR ou taper ton code.
               </div>
             </div>
           )}
