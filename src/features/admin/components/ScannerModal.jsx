@@ -53,9 +53,10 @@ export default function ScannerModal({ open, onClose, onScan }) {
   };
 
   useEffect(() => {
-    // Si la modale n'est pas ouverte, on s'assure que tout est éteint
+    // Si la modale n'est pas ouverte, on ne fait rien.
+    // Le nettoyage (stopScanner) sera appelé automatiquement par la fonction de retour
+    // de l'effet précédent ou lors du démontage.
     if (!open) {
-      stopScanner();
       return;
     }
 
@@ -121,7 +122,7 @@ export default function ScannerModal({ open, onClose, onScan }) {
 
     startScanner();
 
-    // Cleanup lors du démontage ou fermeture
+    // Cleanup lors du démontage ou fermeture (quand open passe à false)
     return () => {
       isMounted = false;
       stopScanner();

@@ -1,4 +1,10 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useCallback,
+} from "react";
 import {
   collection,
   addDoc,
@@ -80,7 +86,8 @@ export default function AdminDashboard({ db, products, onLogout }) {
   }, [db]);
 
   // Expiration automatique silencieuse
-  const expireOrdersNow = async () => {
+  // Utilisation de useCallback pour stabiliser la fonction
+  const expireOrdersNow = useCallback(async () => {
     try {
       const list = ordersRef.current || [];
       const toExpire = list.filter(
@@ -99,13 +106,13 @@ export default function AdminDashboard({ db, products, onLogout }) {
     } catch (e) {
       console.error("Auto-expire error:", e);
     }
-  };
+  }, [db, ORDER_TTL_MS]);
 
   useEffect(() => {
     expireOrdersNow();
     const i = setInterval(expireOrdersNow, 30_000);
     return () => clearInterval(i);
-  }, [db]);
+  }, [expireOrdersNow]); // Ajout de la dépendance
 
   const fmtTime = (o) => {
     const ms = getCreatedMs(o);
@@ -116,7 +123,6 @@ export default function AdminDashboard({ db, products, onLogout }) {
     }).format(new Date(ms));
   };
 
-  // --- C'EST ICI LA CORRECTION PRINCIPALE ---
   const handleValidate = async () => {
     setFeedback(null);
     const token = scanInput.trim().toUpperCase();

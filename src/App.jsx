@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import {
   collection,
   addDoc,
@@ -54,10 +54,30 @@ export default function App() {
     userDataRef.current = userData;
   }, [userData]);
 
-  const notify = (msg, type = "info") => setToast({ msg, type });
+  // Helpers UI - useCallback pour éviter les avertissements de dépendances
+  const notify = useCallback(
+    (msg, type = "info") => setToast({ msg, type }),
+    []
+  );
   const confirmAction = (opts) => setModal(opts);
 
   // 1. GESTION DU RETOUR LIEN MAGIQUE
+  // On définit finishSignIn avec useCallback pour pouvoir l'utiliser dans useEffect
+  const finishSignIn = useCallback(
+    (email) => {
+      signInWithEmailLink(auth, email, window.location.href)
+        .then(() => {
+          window.localStorage.removeItem("emailForSignIn");
+          setEmailPrompt(false);
+          // La redirection sera gérée par le state 'user' qui changera
+        })
+        .catch(() => {
+          notify("Lien invalide ou expiré.", "error");
+        });
+    },
+    [notify]
+  );
+
   useEffect(() => {
     if (isSignInWithEmailLink(auth, window.location.href)) {
       let email = window.localStorage.getItem("emailForSignIn");
@@ -67,19 +87,7 @@ export default function App() {
         finishSignIn(email);
       }
     }
-  }, []);
-
-  const finishSignIn = (email) => {
-    signInWithEmailLink(auth, email, window.location.href)
-      .then(() => {
-        window.localStorage.removeItem("emailForSignIn");
-        setEmailPrompt(false);
-        // La redirection sera gérée par le state 'user' qui changera
-      })
-      .catch(() => {
-        notify("Lien invalide ou expiré.", "error");
-      });
-  };
+  }, [finishSignIn]); // Dépendance ajoutée
 
   // 2. CHARGEMENT PRODUITS
   useEffect(() => {

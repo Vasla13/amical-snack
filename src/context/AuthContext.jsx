@@ -13,6 +13,7 @@ import { ADMIN_EMAIL } from "../config/constants.js";
 const AuthContext = createContext();
 
 // Hook personnalisé pour accéder au contexte facilement
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth() {
   return useContext(AuthContext);
 }

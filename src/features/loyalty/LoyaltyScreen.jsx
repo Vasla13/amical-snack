@@ -66,7 +66,6 @@ export default function LoyaltyScreen({
     strip.style.transform = "translateX(0px)";
 
     // 2. Force le navigateur à recalculer (Reflow) pour bien prendre en compte le reset
-    // eslint-disable-next-line no-unused-expressions
     strip.offsetHeight;
 
     // 3. Calcul de la destination
@@ -191,7 +190,7 @@ export default function LoyaltyScreen({
 
           await batch.commit();
           notify("Coupon ajouté au Pass !", "success");
-        } catch (e) {
+        } catch {
           notify("Erreur lors de l'achat.", "error");
         }
       },
