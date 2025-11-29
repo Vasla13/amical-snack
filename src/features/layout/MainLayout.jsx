@@ -3,13 +3,14 @@ import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { ShoppingBag, CreditCard, QrCode, User, Gift } from "lucide-react";
 import NavBtn from "../../ui/NavBtn.jsx";
 import { useAuth } from "../../context/AuthContext.jsx";
+import { useCart } from "../../context/CartContext.jsx"; // <--- Import
 
-export default function MainLayout({ cartCount }) {
+export default function MainLayout() {
   const { userData } = useAuth();
+  const { totalItems } = useCart(); // <--- Hook
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Détermine l'onglet actif basé sur l'URL
   const currentPath = location.pathname;
   const activeTab =
     currentPath === "/"
@@ -26,7 +27,6 @@ export default function MainLayout({ cartCount }) {
 
   return (
     <div className="h-screen flex flex-col bg-gray-50 max-w-md mx-auto relative font-sans text-gray-800">
-      {/* HEADER FIXE */}
       <header className="bg-white p-3 shadow-sm flex justify-between items-center z-10 sticky top-0">
         <div className="flex items-center gap-3">
           <img
@@ -52,12 +52,10 @@ export default function MainLayout({ cartCount }) {
         </div>
       </header>
 
-      {/* CONTENU PRINCIPAL (C'est ici que les pages changent) */}
       <main className="flex-1 overflow-y-auto pb-20 scroll-smooth">
         <Outlet />
       </main>
 
-      {/* BARRE DE NAVIGATION */}
       <nav className="absolute bottom-0 w-full bg-white border-t flex justify-around p-2 pb-5 z-20 shadow-[0_-5px_15px_rgba(0,0,0,0.02)]">
         <NavBtn
           icon={ShoppingBag}
@@ -70,7 +68,7 @@ export default function MainLayout({ cartCount }) {
           active={activeTab === "cart"}
           onClick={() => navigate("/cart")}
           label="Panier"
-          badge={cartCount}
+          badge={totalItems}
         />
         <NavBtn
           icon={Gift}

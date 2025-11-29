@@ -1,0 +1,100 @@
+import React from "react";
+import {
+  doc,
+  collection,
+  serverTimestamp,
+  writeBatch,
+} from "firebase/firestore";
+import { Ticket } from "lucide-react";
+import { generateToken } from "../../../lib/token.js";
+
+const COST_STD = 10;
+const COST_REDBULL = 12;
+
+export default function PointsShop({ user, products, db, notify, onConfirm }) {
+  const buyDirect = async (product) => {
+    const isRedBull = (product.name || "").toLowerCase().includes("red bull");
+    const cost = isRedBull ? COST_REDBULL : COST_STD;
+
+    if ((user?.points || 0) < cost)
+      return notify("Points insuffisants", "error");
+
+    onConfirm({
+      title: "Échanger des points",
+      text: `Acheter ${product.name} pour ${cost} points ?`,
+      onOk: async () => {
+        try {
+          const batch = writeBatch(db);
+          const userRef = doc(db, "users", user.uid);
+          batch.update(userRef, { points: user.points - cost });
+
+          const couponRef = doc(collection(db, "orders"));
+          batch.set(couponRef, {
+            user_id: user.uid,
+            items: [{ ...product, qty: 1, price_cents: 0, name: product.name }],
+            total_cents: 0,
+            status: "reward_pending",
+            payment_method: "loyalty",
+            source: "Boutique",
+            created_at: serverTimestamp(),
+            qr_token: generateToken(),
+          });
+          await batch.commit();
+          notify("Coupon ajouté au Pass !", "success");
+        } catch {
+          notify("Erreur lors de l'achat.", "error");
+        }
+      },
+    });
+  };
+
+  return (
+    <div>
+      <h2 className="font-black text-xl text-gray-800 mb-4 flex items-center gap-2 px-1">
+        <Ticket className="text-teal-600" /> Boutique
+      </h2>
+      <div className="grid grid-cols-2 gap-3">
+        {(products || [])
+          .filter((p) => p.is_available !== false)
+          .map((p) => {
+            const isRB = (p.name || "").toLowerCase().includes("red bull");
+            const cost = isRB ? COST_REDBULL : COST_STD;
+            const canBuy = (user?.points || 0) >= cost;
+
+            return (
+              <div
+                key={p.id}
+                className="bg-white p-3 rounded-2xl border border-gray-100 shadow-sm flex flex-col relative group"
+              >
+                <div className="absolute top-2 right-2 bg-gray-100 text-gray-600 text-[10px] font-black px-2 py-1 rounded-full">
+                  {cost} pts
+                </div>
+                <div className="h-24 w-full flex items-center justify-center mb-2">
+                  <img
+                    src={p.image}
+                    alt={p.name}
+                    className="h-20 w-20 object-contain transition-transform group-hover:scale-110"
+                    onError={(e) => (e.target.style.display = "none")}
+                  />
+                </div>
+                <div className="font-bold text-xs leading-tight mb-3 line-clamp-1 text-gray-800">
+                  {p.name}
+                </div>
+                <button
+                  onClick={() => buyDirect(p)}
+                  disabled={!canBuy}
+                  className={`mt-auto w-full py-2.5 rounded-xl text-xs font-black transition-all active:scale-95 ${
+                    canBuy
+                      ? "bg-teal-600 text-white shadow-md hover:bg-teal-700"
+                      : "bg-gray-100 text-gray-400 cursor-not-allowed"
+                  }`}
+                >
+                  OBTENIR
+                </button>
+              </div>
+            );
+          })}
+      </div>
+    </div>
+  );
+}

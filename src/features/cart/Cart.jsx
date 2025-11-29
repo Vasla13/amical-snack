@@ -2,8 +2,23 @@ import React from "react";
 import { ShoppingBag } from "lucide-react";
 import Button from "../../ui/Button.jsx";
 import { formatPrice } from "../../lib/format.js";
+import { useCart } from "../../context/CartContext.jsx"; // <--- Import
+import { useNavigate } from "react-router-dom";
 
-export default function Cart({ cart, setCart, onValidate }) {
+export default function Cart({ notify }) {
+  const { cart, addToCart, removeFromCart, createOrder } = useCart(); // <--- Hook
+  const navigate = useNavigate();
+
+  const handleValidate = () => {
+    createOrder(
+      () => {
+        notify("Commande créée !", "success");
+        navigate("/pass");
+      },
+      (err) => notify(err, "error")
+    );
+  };
+
   const total = cart.reduce((s, i) => s + i.price_cents * i.qty, 0);
 
   if (!cart.length)
@@ -35,28 +50,14 @@ export default function Cart({ cart, setCart, onValidate }) {
 
             <div className="flex items-center gap-3 bg-gray-50 rounded-lg p-1 border border-gray-200">
               <button
-                onClick={() =>
-                  setCart((prev) =>
-                    prev
-                      .map((i) =>
-                        i.id === p.id ? { ...i, qty: i.qty - 1 } : i
-                      )
-                      .filter((i) => i.qty > 0)
-                  )
-                }
+                onClick={() => removeFromCart(p.id)}
                 className="w-6 h-6 flex items-center justify-center font-bold text-gray-600"
               >
                 -
               </button>
               <span className="font-bold text-sm w-4 text-center">{p.qty}</span>
               <button
-                onClick={() =>
-                  setCart((prev) =>
-                    prev.map((i) =>
-                      i.id === p.id ? { ...i, qty: i.qty + 1 } : i
-                    )
-                  )
-                }
+                onClick={() => addToCart(p)}
                 className="w-6 h-6 flex items-center justify-center font-bold text-gray-600"
               >
                 +
@@ -71,7 +72,10 @@ export default function Cart({ cart, setCart, onValidate }) {
           <span>Total</span>
           <span>{formatPrice(total)}</span>
         </div>
-        <Button onClick={onValidate} className="w-full text-lg shadow-teal-200">
+        <Button
+          onClick={handleValidate}
+          className="w-full text-lg shadow-teal-200"
+        >
           VALIDER LE PANIER
         </Button>
       </div>

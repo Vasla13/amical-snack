@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import {
   collection,
-  addDoc,
   onSnapshot,
   doc,
   updateDoc,
@@ -15,7 +14,6 @@ import {
 import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
 
 import { auth, db } from "./config/firebase.js";
-import { generateToken } from "./lib/token.js";
 import { useAuth } from "./context/AuthContext.jsx";
 
 // Pages
@@ -39,7 +37,7 @@ export default function App() {
 
   // États globaux
   const [products, setProducts] = useState([]);
-  const [cart, setCart] = useState([]);
+  // const [cart, setCart] = useState([]); // SUPPRIMÉ (géré par Context)
 
   // États UI
   const [toast, setToast] = useState(null);
@@ -54,26 +52,21 @@ export default function App() {
     userDataRef.current = userData;
   }, [userData]);
 
-  // Helpers UI - useCallback pour éviter les avertissements de dépendances
   const notify = useCallback(
     (msg, type = "info") => setToast({ msg, type }),
     []
   );
   const confirmAction = (opts) => setModal(opts);
 
-  // 1. GESTION DU RETOUR LIEN MAGIQUE
-  // On définit finishSignIn avec useCallback pour pouvoir l'utiliser dans useEffect
+  // 1. AUTH & LIEN MAGIQUE
   const finishSignIn = useCallback(
     (email) => {
       signInWithEmailLink(auth, email, window.location.href)
         .then(() => {
           window.localStorage.removeItem("emailForSignIn");
           setEmailPrompt(false);
-          // La redirection sera gérée par le state 'user' qui changera
         })
-        .catch(() => {
-          notify("Lien invalide ou expiré.", "error");
-        });
+        .catch(() => notify("Lien invalide ou expiré.", "error"));
     },
     [notify]
   );
@@ -81,13 +74,10 @@ export default function App() {
   useEffect(() => {
     if (isSignInWithEmailLink(auth, window.location.href)) {
       let email = window.localStorage.getItem("emailForSignIn");
-      if (!email) {
-        setEmailPrompt(true);
-      } else {
-        finishSignIn(email);
-      }
+      if (!email) setEmailPrompt(true);
+      else finishSignIn(email);
     }
-  }, [finishSignIn]); // Dépendance ajoutée
+  }, [finishSignIn]);
 
   // 2. CHARGEMENT PRODUITS
   useEffect(() => {
@@ -98,8 +88,7 @@ export default function App() {
     return () => unsub();
   }, [user]);
 
-  // --- ACTIONS GLOBALES ---
-
+  // --- ACTIONS ---
   const handleCreatePassword = async () => {
     if (newPassword.length < 6) return notify("6 caractères min !", "error");
     setPwdLoading(true);
@@ -107,7 +96,6 @@ export default function App() {
       await updatePassword(user, newPassword);
       await updateDoc(doc(db, "users", user.uid), { setup_complete: true });
       notify("Compte finalisé !", "success");
-      // Le router va automatiquement rediriger vers / car userData changera
     } catch (e) {
       notify(e.message, "error");
     } finally {
@@ -117,29 +105,7 @@ export default function App() {
 
   const handleLogout = async () => {
     await auth.signOut();
-    setCart([]);
     navigate("/login");
-  };
-
-  const createOrder = async () => {
-    if (!cart.length) return;
-    const outOfStock = cart.find((i) => i.is_available === false);
-    if (outOfStock) return notify(`Rupture : ${outOfStock.name}`, "error");
-
-    const total = cart.reduce((s, i) => s + i.price_cents * i.qty, 0);
-    const orderData = {
-      user_id: user.uid,
-      items: cart,
-      total_cents: total,
-      status: "created",
-      qr_token: generateToken(),
-      created_at: serverTimestamp(),
-      payment_method: null,
-    };
-    await addDoc(collection(db, "orders"), orderData);
-    setCart([]);
-    navigate("/pass"); // Navigation auto vers le pass
-    notify("Commande créée !", "success");
   };
 
   const payOrder = async (method, order) => {
@@ -174,9 +140,7 @@ export default function App() {
     notify("Vendeur notifié.", "info");
   };
 
-  // --- RENDU SPÉCIAL (Hors routing) ---
-
-  if (loading) return null; // ou Spinner déjà géré par AuthProvider
+  if (loading) return null;
 
   if (emailPrompt) {
     return (
@@ -193,9 +157,6 @@ export default function App() {
     );
   }
 
-  // --- ROUTING ---
-
-  // Protection : Redirige vers login si pas connecté
   const ProtectedRoute = ({ children }) => {
     if (!user) return <Navigate to="/login" />;
     if (userData && userData.setup_complete === false)
@@ -206,7 +167,6 @@ export default function App() {
 
   return (
     <>
-      {/* Éléments UI Globaux */}
       {toast && (
         <Toast
           msg={toast.msg}
@@ -229,13 +189,10 @@ export default function App() {
       </Modal>
 
       <Routes>
-        {/* Route Login */}
         <Route
           path="/login"
           element={!user ? <LoginScreen /> : <Navigate to="/" />}
         />
-
-        {/* Route Admin */}
         <Route
           path="/admin"
           element={
@@ -250,8 +207,6 @@ export default function App() {
             )
           }
         />
-
-        {/* Route Setup (Création password) */}
         <Route
           path="/setup"
           element={
@@ -284,27 +239,16 @@ export default function App() {
           }
         />
 
-        {/* Routes Application (Protégées + Layout) */}
         <Route
           path="/"
           element={
             <ProtectedRoute>
-              <MainLayout cartCount={cart.reduce((a, c) => a + c.qty, 0)} />
+              <MainLayout />
             </ProtectedRoute>
           }
         >
-          <Route
-            index
-            element={
-              <Catalog products={products} cart={cart} setCart={setCart} />
-            }
-          />
-          <Route
-            path="cart"
-            element={
-              <Cart cart={cart} setCart={setCart} onValidate={createOrder} />
-            }
-          />
+          <Route index element={<Catalog products={products} />} />
+          <Route path="cart" element={<Cart notify={notify} />} />
           <Route
             path="pass"
             element={
@@ -341,8 +285,6 @@ export default function App() {
             }
           />
         </Route>
-
-        {/* Fallback 404 */}
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </>
