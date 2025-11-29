@@ -12,9 +12,8 @@ export function useCart() {
 
 export function CartProvider({ children }) {
   const [cart, setCart] = useState([]);
-  const { userData: user } = useAuth(); // On récupère userData pour l'ID
+  const { userData: user } = useAuth();
 
-  // Ajouter un produit
   const addToCart = (product) => {
     if (product.is_available === false) return;
     setCart((prev) => {
@@ -28,7 +27,6 @@ export function CartProvider({ children }) {
     });
   };
 
-  // Retirer/Diminuer un produit
   const removeFromCart = (productId) => {
     setCart((prev) =>
       prev
@@ -37,11 +35,9 @@ export function CartProvider({ children }) {
     );
   };
 
-  // Créer la commande (Valider le panier)
   const createOrder = async (onSuccess, onError) => {
     if (!cart.length || !user?.uid) return;
 
-    // Vérif stock (sécurité simple côté client)
     const outOfStock = cart.find((i) => i.is_available === false);
     if (outOfStock) {
       if (onError) onError(`Rupture : ${outOfStock.name}`);
@@ -50,7 +46,9 @@ export function CartProvider({ children }) {
 
     try {
       const total = cart.reduce((s, i) => s + i.price_cents * i.qty, 0);
-      await addDoc(collection(db, "orders"), {
+
+      // Création de la commande
+      const docRef = await addDoc(collection(db, "orders"), {
         user_id: user.uid,
         items: cart,
         total_cents: total,
@@ -59,8 +57,11 @@ export function CartProvider({ children }) {
         created_at: serverTimestamp(),
         payment_method: null,
       });
+
       setCart([]); // Vider le panier
-      if (onSuccess) onSuccess();
+
+      // ✅ CHANGEMENT ICI : On passe l'ID de la commande créée au callback
+      if (onSuccess) onSuccess(docRef.id);
     } catch (e) {
       console.error(e);
       if (onError) onError(e.message);
@@ -78,7 +79,7 @@ export function CartProvider({ children }) {
     removeFromCart,
     createOrder,
     totalItems,
-    setCart, // Au cas où on veut reset manuellement
+    setCart,
   };
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
