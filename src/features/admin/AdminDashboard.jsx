@@ -29,6 +29,93 @@ import { formatPrice } from "../../lib/format.js";
 // ✅ Worker path pour Vite
 QrScanner.WORKER_PATH = qrWorkerUrl;
 
+function PaidPickList({ items }) {
+  // Regroupe les items identiques (par id si dispo)
+  const grouped = useMemo(() => {
+    const map = new Map();
+    (items || []).forEach((it) => {
+      const key =
+        it.id || it.product_id || it.name || Math.random().toString(36);
+      const prev = map.get(key);
+      if (prev) {
+        map.set(key, { ...prev, qty: (prev.qty || 0) + (it.qty || 0) });
+      } else {
+        map.set(key, { ...it, qty: it.qty || 0 });
+      }
+    });
+
+    const arr = Array.from(map.values());
+    arr.sort(
+      (a, b) =>
+        (b.qty || 0) - (a.qty || 0) ||
+        String(a.name || "").localeCompare(String(b.name || ""))
+    );
+    return arr;
+  }, [items]);
+
+  const totalQty = useMemo(
+    () => grouped.reduce((s, it) => s + (it.qty || 0), 0),
+    [grouped]
+  );
+
+  if (!grouped.length) return null;
+
+  return (
+    <div className="mt-3 rounded-xl border border-green-200 bg-green-50 p-3">
+      <div className="flex items-center justify-between mb-2">
+        <div className="text-xs font-black uppercase text-green-700">
+          Produits à donner
+        </div>
+        <div className="text-xs font-black text-green-800">
+          Total: <span className="text-base">{totalQty}</span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        {grouped.map((it, idx) => (
+          <div
+            key={(it.id || it.name || "it") + "-" + idx}
+            className="relative overflow-hidden rounded-xl bg-white border border-green-200 shadow-sm"
+          >
+            {/* qty huge */}
+            <div className="absolute top-2 left-2 w-11 h-11 rounded-xl bg-green-600 text-white flex items-center justify-center font-black text-xl shadow-md">
+              {it.qty}
+            </div>
+
+            {/* image / placeholder */}
+            <div className="h-24 w-full bg-white flex items-center justify-center p-2">
+              {it.image ? (
+                <img
+                  src={it.image}
+                  alt={it.name}
+                  className="h-full w-full object-contain mix-blend-multiply"
+                  onError={(e) => (e.currentTarget.style.display = "none")}
+                />
+              ) : (
+                <div className="text-[10px] text-gray-400 font-bold">
+                  NO IMAGE
+                </div>
+              )}
+            </div>
+
+            <div className="px-2 pb-2">
+              <div className="text-xs font-black text-gray-900 line-clamp-2 leading-tight">
+                {it.name}
+              </div>
+              <div className="text-[11px] text-gray-500 font-bold mt-1">
+                {formatPrice((it.price_cents || 0) * (it.qty || 0))}
+              </div>
+            </div>
+
+            {/* subtle stripe */}
+            <div className="absolute -right-10 top-6 rotate-45 bg-green-600/15 w-40 h-8" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function ScannerModal({ open, onClose, onScan }) {
   const videoRef = useRef(null);
   const scannerRef = useRef(null);
@@ -102,7 +189,7 @@ function ScannerModal({ open, onClose, onScan }) {
             const token = normalizeToken(raw);
             if (token) {
               onScan(token); // ✅ remplit le champ
-              onClose(); // ✅ ferme automatiquement
+              onClose(); // ✅ ferme
             }
           },
           {
@@ -127,9 +214,9 @@ function ScannerModal({ open, onClose, onScan }) {
         } catch {
           setTorchSupported(false);
         }
-      } catch (e) {
+      } catch {
         setError(
-          "Impossible de lancer la caméra. Autorise la caméra dans le navigateur, et vérifie que tu es bien en HTTPS."
+          "Impossible de lancer la caméra. Autorise la caméra et vérifie que tu es bien en HTTPS."
         );
       }
     })();
@@ -171,7 +258,6 @@ function ScannerModal({ open, onClose, onScan }) {
               playsInline
             />
 
-            {/* cadre */}
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
               <div className="w-56 h-56 rounded-2xl border-2 border-white/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.25)]" />
             </div>
@@ -204,13 +290,8 @@ function ScannerModal({ open, onClose, onScan }) {
           <div className="mt-3 flex gap-2">
             <button
               onClick={async () => {
-                try {
-                  await stop();
-                } finally {
-                  // relance simplement en fermant/ouvrant
-                  onClose();
-                  setTimeout(() => onScan(""), 0);
-                }
+                await stop();
+                onClose();
               }}
               className="flex-1 bg-white border border-gray-200 py-3 rounded-xl font-black text-gray-800"
             >
@@ -233,7 +314,6 @@ export default function AdminDashboard({ db, products, onLogout }) {
 
   const [historyFilter, setHistoryFilter] = useState("all");
   const [historyQuery, setHistoryQuery] = useState("");
-
   const [stockQuery, setStockQuery] = useState("");
 
   const ordersRef = useRef([]);
@@ -425,7 +505,7 @@ export default function AdminDashboard({ db, products, onLogout }) {
       <ScannerModal
         open={scannerOpen}
         onClose={() => setScannerOpen(false)}
-        onScan={(token) => token && setScanInput(token)}
+        onScan={(t) => t && setScanInput(t)}
       />
 
       <div className="flex justify-between items-center mb-4 gap-3">
@@ -465,14 +545,12 @@ export default function AdminDashboard({ db, products, onLogout }) {
               {Math.round(ORDER_TTL_MS / 60000)} min si non terminé.
             </p>
 
-            {/* ✅ bouton VALIDER bien placé sur mobile */}
             <div className="flex flex-col sm:flex-row gap-3">
               <div className="flex gap-2 flex-1">
                 <button
                   onClick={() => setScannerOpen(true)}
                   className="shrink-0 bg-teal-700 hover:bg-teal-800 text-white w-14 h-14 rounded-xl font-bold shadow-lg active:scale-95 transition-all flex items-center justify-center"
-                  aria-label="Ouvrir la caméra"
-                  title="Scanner QR"
+                  aria-label="Scanner QR"
                 >
                   <Camera />
                 </button>
@@ -502,55 +580,63 @@ export default function AdminDashboard({ db, products, onLogout }) {
             {activeOrders.map((o) => (
               <div
                 key={o.id}
-                className={`bg-white p-4 rounded-xl shadow-sm border-l-4 flex justify-between items-center ${
+                className={`bg-white p-4 rounded-xl shadow-sm border-l-4 ${
                   o.status === "paid"
                     ? "border-green-500 ring-2 ring-green-500"
                     : "border-gray-300"
                 }`}
               >
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono font-black text-xl text-gray-800">
-                      #{o.qr_token}
-                    </span>
+                {/* TOP ROW */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-mono font-black text-xl text-gray-800">
+                        #{o.qr_token}
+                      </span>
 
-                    <span className="text-[10px] px-2 py-0.5 rounded font-bold uppercase bg-gray-100 text-gray-600">
-                      {fmtTime(o)}
-                    </span>
+                      <span className="text-[10px] px-2 py-0.5 rounded font-bold uppercase bg-gray-100 text-gray-600">
+                        {fmtTime(o)}
+                      </span>
 
-                    {o.status === "created" && (
-                      <span className="bg-gray-100 text-gray-500 px-2 py-0.5 rounded text-[10px] font-bold uppercase">
-                        À Scanner
-                      </span>
-                    )}
-                    {o.status === "scanned" && (
-                      <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase animate-pulse">
-                        En paiement...
-                      </span>
-                    )}
-                    {o.status === "paid" && (
-                      <span className="bg-green-600 text-white px-2 py-0.5 rounded text-[10px] font-bold uppercase animate-pulse">
-                        💰 PAYÉ
-                      </span>
-                    )}
+                      {o.status === "created" && (
+                        <span className="bg-gray-100 text-gray-500 px-2 py-0.5 rounded text-[10px] font-bold uppercase">
+                          À Scanner
+                        </span>
+                      )}
+                      {o.status === "scanned" && (
+                        <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase animate-pulse">
+                          En paiement...
+                        </span>
+                      )}
+                      {o.status === "paid" && (
+                        <span className="bg-green-600 text-white px-2 py-0.5 rounded text-[10px] font-bold uppercase animate-pulse">
+                          💰 PAYÉ
+                        </span>
+                      )}
+                    </div>
+
+                    <p className="text-xs text-gray-500 mt-1">
+                      {o.items?.length || 0} produits •{" "}
+                      {formatPrice(o.total_cents || 0)}
+                    </p>
                   </div>
 
-                  <p className="text-xs text-gray-500 mt-1">
-                    {o.items?.length || 0} articles •{" "}
-                    {formatPrice(o.total_cents || 0)}
-                  </p>
+                  {o.status === "paid" ? (
+                    <button
+                      onClick={() => handleServe(o.id)}
+                      className="bg-green-600 hover:bg-green-700 text-white px-4 py-3 rounded-xl font-black text-sm shadow-md w-full sm:w-auto"
+                    >
+                      DONNER PRODUITS
+                    </button>
+                  ) : (
+                    <div className="text-xs text-gray-400 italic w-full sm:w-auto text-right">
+                      —
+                    </div>
+                  )}
                 </div>
 
-                {o.status === "paid" ? (
-                  <button
-                    onClick={() => handleServe(o.id)}
-                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-bold text-sm shadow-md"
-                  >
-                    DONNER PRODUITS
-                  </button>
-                ) : (
-                  <span className="text-xs text-gray-400 italic">—</span>
-                )}
+                {/* ✅ PICK LIST VISIBLE ONLY WHEN PAID */}
+                {o.status === "paid" && <PaidPickList items={o.items} />}
               </div>
             ))}
 
