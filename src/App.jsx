@@ -183,8 +183,12 @@ export default function App() {
           </div>
         </div>
         <div className="bg-teal-50 px-3 py-1 rounded-full border border-teal-100 flex items-center gap-1">
-          <span className="font-bold text-teal-800">{userData?.points || 0}</span>
-          <span className="text-[10px] uppercase text-teal-600 font-bold">pts</span>
+          <span className="font-bold text-teal-800">
+            {userData?.points || 0}
+          </span>
+          <span className="text-[10px] uppercase text-teal-600 font-bold">
+            pts
+          </span>
         </div>
       </header>
 
@@ -192,7 +196,9 @@ export default function App() {
         {tab === "catalog" && (
           <Catalog products={products} cart={cart} setCart={setCart} />
         )}
-        {tab === "cart" && <Cart cart={cart} setCart={setCart} onValidate={createOrder} />}
+        {tab === "cart" && (
+          <Cart cart={cart} setCart={setCart} onValidate={createOrder} />
+        )}
         {tab === "order" && (
           <OrderFlow
             order={currentOrder}
@@ -223,7 +229,9 @@ export default function App() {
         <NavBtn
           icon={QrCode}
           active={tab === "order"}
-          onClick={() => (currentOrder ? setTab("order") : alert("Pas de commande"))}
+          onClick={() =>
+            currentOrder ? setTab("order") : alert("Pas de commande")
+          }
           label="Pass"
           highlight={!!currentOrder}
         />

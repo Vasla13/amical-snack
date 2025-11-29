@@ -1,12 +1,11 @@
 import React from "react";
-import { RefreshCw, CheckCircle, Smartphone } from "lucide-react";
+import { RefreshCw, CheckCircle, Smartphone, XCircle } from "lucide-react";
 import Button from "../../ui/Button.jsx";
 import { formatPrice } from "../../lib/format.js";
 
 export default function OrderFlow({ order, onPay, onClose }) {
   if (!order) return <div className="p-10 text-center">Aucune commande.</div>;
 
-  // ETAPE 1 : ATTENTE SCAN (Client bloqué ici tant que l'admin ne scanne pas)
   if (order.status === "created") {
     return (
       <div className="h-full flex flex-col items-center justify-center bg-teal-800 text-white p-6 text-center animate-in fade-in">
@@ -32,7 +31,6 @@ export default function OrderFlow({ order, onPay, onClose }) {
     );
   }
 
-  // ETAPE 2 : PAIEMENT (L'admin a scanné -> le bouton de paiement apparaît)
   if (order.status === "scanned") {
     return (
       <div className="h-full flex flex-col items-center justify-center bg-white p-6 text-center animate-in slide-in-from-bottom">
@@ -64,7 +62,27 @@ export default function OrderFlow({ order, onPay, onClose }) {
     );
   }
 
-  // ETAPE 3 : FINI (Paiement effectué)
+  // ✅ NOUVEAU : commande expirée
+  if (order.status === "expired") {
+    return (
+      <div className="h-full flex flex-col items-center justify-center bg-white p-6 text-center animate-in fade-in">
+        <div className="w-24 h-24 bg-red-100 rounded-full flex items-center justify-center mb-6 text-red-600">
+          <XCircle size={50} />
+        </div>
+        <h2 className="text-2xl font-black text-gray-800 mb-2">
+          Commande expirée
+        </h2>
+        <p className="text-gray-500 mb-8">
+          Le délai de paiement a été dépassé. Recrée une commande depuis le
+          panier.
+        </p>
+        <Button onClick={onClose} className="w-full">
+          RETOUR
+        </Button>
+      </div>
+    );
+  }
+
   if (order.status === "paid" || order.status === "served") {
     return (
       <div className="h-full flex flex-col items-center justify-center bg-green-500 text-white p-6 text-center animate-in zoom-in">

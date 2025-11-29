@@ -16,8 +16,8 @@ export default function Profile({ user, logout }) {
 
       <div className="bg-white p-4 rounded-2xl shadow-sm mb-2">
         <p className="text-gray-500 text-xs uppercase font-bold">Compte</p>
-        <p className="font-bold text-lg">{user?.displayName}</p>
-        <p className="text-teal-600">{user?.email}</p>
+        <p className="font-bold text-lg">{user?.displayName || "-"}</p>
+        <p className="text-teal-600">{user?.email || "-"}</p>
       </div>
 
       <button
