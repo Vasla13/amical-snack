@@ -10,6 +10,7 @@ import {
   getDocs,
   deleteDoc,
   serverTimestamp,
+  getDoc,
 } from "firebase/firestore";
 import {
   Camera,
@@ -19,6 +20,7 @@ import {
   History,
   X,
   Flashlight,
+  Banknote,
 } from "lucide-react";
 import QrScanner from "qr-scanner";
 import qrWorkerUrl from "qr-scanner/qr-scanner-worker.min.js?url";
@@ -26,22 +28,17 @@ import qrWorkerUrl from "qr-scanner/qr-scanner-worker.min.js?url";
 import { SEED_PRODUCTS } from "../../data/seedProducts.js";
 import { formatPrice } from "../../lib/format.js";
 
-// ✅ Worker path pour Vite
 QrScanner.WORKER_PATH = qrWorkerUrl;
 
 function PaidPickList({ items }) {
-  // Regroupe les items identiques (par id si dispo)
   const grouped = useMemo(() => {
     const map = new Map();
     (items || []).forEach((it) => {
       const key =
         it.id || it.product_id || it.name || Math.random().toString(36);
       const prev = map.get(key);
-      if (prev) {
-        map.set(key, { ...prev, qty: (prev.qty || 0) + (it.qty || 0) });
-      } else {
-        map.set(key, { ...it, qty: it.qty || 0 });
-      }
+      if (prev) map.set(key, { ...prev, qty: (prev.qty || 0) + (it.qty || 0) });
+      else map.set(key, { ...it, qty: it.qty || 0 });
     });
 
     const arr = Array.from(map.values());
@@ -77,12 +74,10 @@ function PaidPickList({ items }) {
             key={(it.id || it.name || "it") + "-" + idx}
             className="relative overflow-hidden rounded-xl bg-white border border-green-200 shadow-sm"
           >
-            {/* qty huge */}
             <div className="absolute top-2 left-2 w-11 h-11 rounded-xl bg-green-600 text-white flex items-center justify-center font-black text-xl shadow-md">
               {it.qty}
             </div>
 
-            {/* image / placeholder */}
             <div className="h-24 w-full bg-white flex items-center justify-center p-2">
               {it.image ? (
                 <img
@@ -107,7 +102,6 @@ function PaidPickList({ items }) {
               </div>
             </div>
 
-            {/* subtle stripe */}
             <div className="absolute -right-10 top-6 rotate-45 bg-green-600/15 w-40 h-8" />
           </div>
         ))}
@@ -169,12 +163,8 @@ function ScannerModal({ open, onClose, onScan }) {
     (async () => {
       setError("");
 
-      // ⚠️ Caméra sur mobile = HTTPS obligatoire (sauf localhost)
       if (!window.isSecureContext) {
-        setError(
-          "Caméra bloquée : il faut ouvrir le site en HTTPS sur mobile (sauf localhost). " +
-            "En démo, héberge-le (Firebase Hosting / Vercel / Netlify) et ça marchera."
-        );
+        setError("Caméra bloquée : il faut HTTPS sur mobile (sauf localhost).");
         return;
       }
 
@@ -188,8 +178,8 @@ function ScannerModal({ open, onClose, onScan }) {
             const raw = typeof result === "string" ? result : result?.data;
             const token = normalizeToken(raw);
             if (token) {
-              onScan(token); // ✅ remplit le champ
-              onClose(); // ✅ ferme
+              onScan(token);
+              onClose();
             }
           },
           {
@@ -203,7 +193,6 @@ function ScannerModal({ open, onClose, onScan }) {
         scannerRef.current = scanner;
         await scanner.start();
 
-        // Flash si dispo
         try {
           const has = await scanner.hasFlash?.();
           setTorchSupported(!!has);
@@ -216,14 +205,12 @@ function ScannerModal({ open, onClose, onScan }) {
         }
       } catch {
         setError(
-          "Impossible de lancer la caméra. Autorise la caméra et vérifie que tu es bien en HTTPS."
+          "Impossible de lancer la caméra. Autorise la caméra et vérifie HTTPS."
         );
       }
     })();
 
-    return () => {
-      stop();
-    };
+    return () => stop();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -339,8 +326,9 @@ export default function AdminDashboard({ db, products, onLogout }) {
     return ts && typeof ts.toMillis === "function" ? ts.toMillis() : null;
   };
 
+  // ✅ cash aussi = en attente, donc expirable
   const isExpirableStatus = (status) =>
-    status === "created" || status === "scanned";
+    status === "created" || status === "scanned" || status === "cash";
 
   const isExpired = (o) => {
     if (!isExpirableStatus(o.status)) return false;
@@ -400,6 +388,30 @@ export default function AdminDashboard({ db, products, onLogout }) {
     alert("Code validé ! Le client peut payer.");
   };
 
+  const creditPointsForUser = async (userId, totalCents) => {
+    const uref = doc(db, "users", userId);
+    const snap = await getDoc(uref);
+    const prev = snap.exists() ? Number(snap.data()?.points || 0) : 0;
+    const prevCenti = Math.round(prev * 100);
+    const newPoints = (prevCenti + Number(totalCents || 0)) / 100;
+    await updateDoc(uref, { points: newPoints });
+  };
+
+  // ✅ vendeur confirme encaissement cash → passe en paid + points
+  const confirmCash = async (o) => {
+    await updateDoc(doc(db, "orders", o.id), {
+      status: "paid",
+      paid_at: serverTimestamp(),
+      payment_method: "cash",
+      cash_received_at: serverTimestamp(),
+      points_earned: Number(o.total_cents || 0) / 100,
+    });
+
+    if (o.user_id) {
+      await creditPointsForUser(o.user_id, Number(o.total_cents || 0));
+    }
+  };
+
   const handleServe = async (orderId) => {
     await updateDoc(doc(db, "orders", orderId), {
       status: "served",
@@ -426,12 +438,13 @@ export default function AdminDashboard({ db, products, onLogout }) {
     alert("✅ Stock réinitialisé !");
   };
 
+  // ✅ cash inclus dans les commandes actives
   const activeOrders = useMemo(() => {
     return orders
       .filter((o) => o.status !== "expired")
       .filter((o) => o.status !== "served")
       .filter((o) => !(isExpirableStatus(o.status) && isExpired(o)))
-      .filter((o) => ["created", "scanned", "paid"].includes(o.status));
+      .filter((o) => ["created", "scanned", "cash", "paid"].includes(o.status));
   }, [orders]);
 
   const historyOrders = useMemo(() => {
@@ -499,6 +512,26 @@ export default function AdminDashboard({ db, products, onLogout }) {
       {label}
     </button>
   );
+
+  const methodChip = (method) => {
+    const m = String(method || "");
+    const label =
+      m === "apple_pay"
+        ? "APPLE PAY"
+        : m === "google_pay"
+        ? "ANDROID PAY"
+        : m === "paypal_balance"
+        ? "PAYPAL"
+        : m === "cash"
+        ? "ESPÈCES"
+        : "";
+    if (!label) return null;
+    return (
+      <span className="text-[10px] px-2 py-0.5 rounded font-black uppercase bg-gray-100 text-gray-700">
+        {label}
+      </span>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-gray-100 p-4 font-sans">
@@ -583,10 +616,11 @@ export default function AdminDashboard({ db, products, onLogout }) {
                 className={`bg-white p-4 rounded-xl shadow-sm border-l-4 ${
                   o.status === "paid"
                     ? "border-green-500 ring-2 ring-green-500"
+                    : o.status === "cash"
+                    ? "border-yellow-500 ring-2 ring-yellow-300"
                     : "border-gray-300"
                 }`}
               >
-                {/* TOP ROW */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
@@ -598,16 +632,26 @@ export default function AdminDashboard({ db, products, onLogout }) {
                         {fmtTime(o)}
                       </span>
 
+                      {methodChip(o.payment_method)}
+
                       {o.status === "created" && (
                         <span className="bg-gray-100 text-gray-500 px-2 py-0.5 rounded text-[10px] font-bold uppercase">
                           À Scanner
                         </span>
                       )}
+
                       {o.status === "scanned" && (
                         <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase animate-pulse">
                           En paiement...
                         </span>
                       )}
+
+                      {o.status === "cash" && (
+                        <span className="bg-yellow-400 text-black px-2 py-0.5 rounded text-[10px] font-black uppercase animate-pulse flex items-center gap-1">
+                          <Banknote size={12} /> Espèces demandées
+                        </span>
+                      )}
+
                       {o.status === "paid" && (
                         <span className="bg-green-600 text-white px-2 py-0.5 rounded text-[10px] font-bold uppercase animate-pulse">
                           💰 PAYÉ
@@ -621,7 +665,15 @@ export default function AdminDashboard({ db, products, onLogout }) {
                     </p>
                   </div>
 
-                  {o.status === "paid" ? (
+                  {/* Actions */}
+                  {o.status === "cash" ? (
+                    <button
+                      onClick={() => confirmCash(o)}
+                      className="bg-yellow-400 hover:bg-yellow-500 text-black px-4 py-3 rounded-xl font-black text-sm shadow-md w-full sm:w-auto"
+                    >
+                      CONFIRMER ESPÈCES
+                    </button>
+                  ) : o.status === "paid" ? (
                     <button
                       onClick={() => handleServe(o.id)}
                       className="bg-green-600 hover:bg-green-700 text-white px-4 py-3 rounded-xl font-black text-sm shadow-md w-full sm:w-auto"
@@ -635,7 +687,7 @@ export default function AdminDashboard({ db, products, onLogout }) {
                   )}
                 </div>
 
-                {/* ✅ PICK LIST VISIBLE ONLY WHEN PAID */}
+                {/* Pick list visible quand payée */}
                 {o.status === "paid" && <PaidPickList items={o.items} />}
               </div>
             ))}
@@ -686,6 +738,7 @@ export default function AdminDashboard({ db, products, onLogout }) {
                     <span className="text-[10px] px-2 py-0.5 rounded font-bold uppercase bg-gray-100 text-gray-600">
                       {fmtTime(o)}
                     </span>
+                    {methodChip(o.payment_method)}
                   </div>
 
                   <span

@@ -1,105 +1,264 @@
-import React from "react";
-import { RefreshCw, CheckCircle, Smartphone, XCircle } from "lucide-react";
-import Button from "../../ui/Button.jsx";
+import React, { useMemo, useState } from "react";
+import {
+  Apple,
+  Smartphone,
+  Wallet,
+  Banknote,
+  CheckCircle2,
+  Hourglass,
+  X,
+} from "lucide-react";
 import { formatPrice } from "../../lib/format.js";
 
-export default function OrderFlow({ order, onPay, onClose }) {
-  if (!order) return <div className="p-10 text-center">Aucune commande.</div>;
+function detectMobileOS() {
+  // iOS / Android detection (robuste + fallback)
+  const ua = navigator.userAgent || "";
+  const platform =
+    navigator.userAgentData?.platform || navigator.platform || "";
 
-  if (order.status === "created") {
-    return (
-      <div className="h-full flex flex-col items-center justify-center bg-teal-800 text-white p-6 text-center animate-in fade-in">
-        <h2 className="text-2xl font-black mb-2">SCANNEZ CE CODE</h2>
-        <p className="text-teal-200 mb-8 text-sm">
-          Présentez votre écran au vendeur pour payer.
-        </p>
-        <div className="bg-white p-4 rounded-3xl shadow-2xl mb-8 transform scale-110">
-          <img
-            src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${order.qr_token}&color=0f766e`}
-            alt="QR"
-            className="w-56 h-56"
-          />
+  const isAndroid = /Android/i.test(ua);
+  const isIOS =
+    /iPhone|iPad|iPod/i.test(ua) ||
+    /iOS/i.test(platform) ||
+    // iPadOS 13+ peut se présenter comme MacIntel
+    (platform === "MacIntel" &&
+      typeof navigator.maxTouchPoints === "number" &&
+      navigator.maxTouchPoints > 1);
+
+  return { isIOS, isAndroid };
+}
+
+export default function OrderFlow({
+  order,
+  user,
+  onPay,
+  onRequestCash,
+  onClose,
+}) {
+  const [loading, setLoading] = useState(false);
+
+  const totalCents = Number(order?.total_cents || 0);
+  const balance = Number(user?.balance_cents || 0);
+
+  const { isIOS, isAndroid } = useMemo(detectMobileOS, []);
+
+  const itemsSummary = useMemo(() => {
+    const list = order?.items || [];
+    const map = new Map();
+    for (const it of list) {
+      const key = it.id || it.name;
+      const prev = map.get(key);
+      if (prev) map.set(key, { ...prev, qty: (prev.qty || 0) + (it.qty || 0) });
+      else map.set(key, { ...it });
+    }
+    return Array.from(map.values()).sort((a, b) => (b.qty || 0) - (a.qty || 0));
+  }, [order?.items]);
+
+  const pay = async (method) => {
+    if (!order) return;
+    try {
+      setLoading(true);
+      await onPay(method);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const cash = async () => {
+    if (!order) return;
+    try {
+      setLoading(true);
+      await onRequestCash();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!order) return null;
+
+  const status = order.status;
+
+  // ✅ Sur iPhone/iPad: seulement Apple Pay
+  // ✅ Sur Android: seulement Android/Google Pay
+  // ✅ Sur autre (PC, etc): on affiche les 2 (pratique pour tester)
+  const showApplePay = isIOS || (!isIOS && !isAndroid);
+  const showGooglePay = isAndroid || (!isIOS && !isAndroid);
+
+  return (
+    <div className="p-4">
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="p-4 border-b border-gray-100 flex items-start justify-between gap-3">
+          <div>
+            <div className="text-xs font-bold uppercase text-gray-400">
+              Commande
+            </div>
+            <div className="font-black text-3xl tracking-widest font-mono text-gray-900">
+              #{order.qr_token}
+            </div>
+            <div className="mt-1 text-sm text-gray-600 font-bold">
+              Total :{" "}
+              <span className="text-teal-700">{formatPrice(totalCents)}</span>
+            </div>
+          </div>
+
+          <button
+            onClick={onClose}
+            className="p-2 rounded-xl hover:bg-gray-100 text-gray-600"
+            aria-label="Fermer"
+            disabled={loading}
+          >
+            <X />
+          </button>
         </div>
-        <p className="font-mono text-4xl font-black tracking-widest">
-          {order.qr_token}
-        </p>
-        <div className="mt-8 flex items-center gap-2 text-teal-300 animate-pulse">
-          <RefreshCw size={16} className="animate-spin" /> En attente du
-          vendeur...
+
+        <div className="p-4">
+          <div className="text-xs font-black uppercase text-gray-400 mb-2">
+            Résumé
+          </div>
+          <div className="space-y-2">
+            {itemsSummary.map((it, idx) => (
+              <div
+                key={(it.id || it.name) + "-" + idx}
+                className="flex items-center justify-between"
+              >
+                <div className="min-w-0">
+                  <div className="font-bold text-gray-800 truncate">
+                    {it.name}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    {formatPrice(it.price_cents || 0)} / unité
+                  </div>
+                </div>
+                <div className="text-2xl font-black text-gray-900">
+                  {it.qty}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {status === "created" && (
+            <div className="mt-4 bg-gray-50 border border-gray-100 rounded-2xl p-4">
+              <div className="flex items-center gap-2 font-black text-gray-800">
+                <Hourglass size={18} /> Attente du vendeur…
+              </div>
+              <div className="text-sm text-gray-600 mt-1">
+                Donne ton code au vendeur pour qu’il le valide.
+              </div>
+            </div>
+          )}
+
+          {status === "scanned" && (
+            <div className="mt-4">
+              <div className="bg-teal-50 border border-teal-100 rounded-2xl p-4">
+                <div className="font-black text-teal-800">Paiement</div>
+                <div className="text-sm text-teal-700 mt-1">
+                  Choisis ton moyen de paiement (simulation).
+                </div>
+              </div>
+
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                {showApplePay && (
+                  <button
+                    disabled={loading}
+                    onClick={() => pay("apple_pay")}
+                    className="bg-gray-900 text-white rounded-2xl p-4 font-black flex items-center justify-center gap-2 active:scale-95 transition disabled:opacity-60"
+                  >
+                    <Apple /> Apple Pay
+                  </button>
+                )}
+
+                {showGooglePay && (
+                  <button
+                    disabled={loading}
+                    onClick={() => pay("google_pay")}
+                    className="bg-gray-900 text-white rounded-2xl p-4 font-black flex items-center justify-center gap-2 active:scale-95 transition disabled:opacity-60"
+                  >
+                    <Smartphone /> Android Pay
+                  </button>
+                )}
+
+                <button
+                  disabled={loading || balance < totalCents}
+                  onClick={() => pay("paypal_balance")}
+                  className={`rounded-2xl p-4 font-black flex items-center justify-center gap-2 active:scale-95 transition disabled:opacity-60 ${
+                    balance >= totalCents
+                      ? "bg-teal-700 text-white"
+                      : "bg-gray-200 text-gray-500"
+                  }`}
+                >
+                  <Wallet /> PayPal (solde)
+                </button>
+
+                <button
+                  disabled={loading}
+                  onClick={cash}
+                  className="bg-yellow-400 text-black rounded-2xl p-4 font-black flex items-center justify-center gap-2 active:scale-95 transition disabled:opacity-60"
+                >
+                  <Banknote /> Espèces
+                </button>
+              </div>
+
+              <div className="mt-3 text-xs text-gray-500">
+                Solde PayPal :{" "}
+                <span className="font-black">{formatPrice(balance)}</span>{" "}
+                {balance < totalCents
+                  ? "— (insuffisant pour cette commande)"
+                  : ""}
+              </div>
+
+              <div className="mt-2 text-xs text-gray-500">
+                Si tu choisis <b>Espèces</b>, le vendeur sera notifié.
+              </div>
+            </div>
+          )}
+
+          {status === "cash" && (
+            <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-2xl p-4">
+              <div className="font-black text-yellow-800 flex items-center gap-2">
+                <Banknote size={18} /> Paiement en espèces demandé
+              </div>
+              <div className="text-sm text-yellow-800 mt-1">
+                Va voir le vendeur : il a été notifié. Il confirmera le paiement
+                ensuite.
+              </div>
+            </div>
+          )}
+
+          {status === "paid" && (
+            <div className="mt-4 bg-green-50 border border-green-200 rounded-2xl p-4">
+              <div className="font-black text-green-800 flex items-center gap-2">
+                <CheckCircle2 size={18} /> Paiement accepté
+              </div>
+
+              <div className="text-sm text-green-800 mt-1">
+                Le vendeur peut maintenant te donner les produits.
+              </div>
+
+              <div className="mt-2 text-xs text-gray-600">
+                Moyen :{" "}
+                <span className="font-black">
+                  {order.payment_method === "apple_pay" && "Apple Pay"}
+                  {order.payment_method === "google_pay" &&
+                    "Android/Google Pay"}
+                  {order.payment_method === "paypal_balance" &&
+                    "PayPal (solde)"}
+                  {order.payment_method === "cash" && "Espèces"}
+                  {!order.payment_method && "—"}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {status === "served" && (
+            <div className="mt-4 bg-gray-900 text-white rounded-2xl p-4">
+              <div className="font-black flex items-center gap-2">
+                <CheckCircle2 size={18} /> Commande terminée
+              </div>
+              <div className="text-sm text-gray-200 mt-1">Merci 👌</div>
+            </div>
+          )}
         </div>
       </div>
-    );
-  }
-
-  if (order.status === "scanned") {
-    return (
-      <div className="h-full flex flex-col items-center justify-center bg-white p-6 text-center animate-in slide-in-from-bottom">
-        <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mb-6 text-green-600 animate-bounce">
-          <CheckCircle size={50} />
-        </div>
-        <h2 className="text-2xl font-black text-gray-800 mb-2">
-          Code Validé !
-        </h2>
-        <p className="text-gray-500 mb-8">
-          Le vendeur a confirmé. Vous pouvez régler.
-        </p>
-        <div className="w-full bg-gray-50 p-6 rounded-2xl mb-8 border border-gray-100">
-          <p className="text-gray-400 text-sm uppercase font-bold mb-1">
-            Total à régler
-          </p>
-          <p className="text-6xl font-black text-teal-700">
-            {formatPrice(order.total_cents)}
-          </p>
-        </div>
-        <Button
-          onClick={onPay}
-          variant="primary"
-          className="w-full bg-black text-white h-16 text-lg shadow-xl gap-3"
-        >
-          <Smartphone size={24} /> Payer avec Apple Pay
-        </Button>
-      </div>
-    );
-  }
-
-  // ✅ NOUVEAU : commande expirée
-  if (order.status === "expired") {
-    return (
-      <div className="h-full flex flex-col items-center justify-center bg-white p-6 text-center animate-in fade-in">
-        <div className="w-24 h-24 bg-red-100 rounded-full flex items-center justify-center mb-6 text-red-600">
-          <XCircle size={50} />
-        </div>
-        <h2 className="text-2xl font-black text-gray-800 mb-2">
-          Commande expirée
-        </h2>
-        <p className="text-gray-500 mb-8">
-          Le délai de paiement a été dépassé. Recrée une commande depuis le
-          panier.
-        </p>
-        <Button onClick={onClose} className="w-full">
-          RETOUR
-        </Button>
-      </div>
-    );
-  }
-
-  if (order.status === "paid" || order.status === "served") {
-    return (
-      <div className="h-full flex flex-col items-center justify-center bg-green-500 text-white p-6 text-center animate-in zoom-in">
-        <CheckCircle size={80} className="mb-6 text-white" />
-        <h2 className="text-3xl font-black mb-2">PAIEMENT REÇU !</h2>
-        <p className="text-green-100 text-lg mb-8">
-          Vous pouvez récupérer vos produits.
-        </p>
-        <Button
-          onClick={onClose}
-          className="bg-white text-green-600 w-full font-bold"
-        >
-          TERMINER
-        </Button>
-      </div>
-    );
-  }
-
-  return null;
+    </div>
+  );
 }

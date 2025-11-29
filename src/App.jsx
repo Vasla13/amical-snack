@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   collection,
   addDoc,
@@ -32,7 +32,12 @@ export default function App() {
   const [tab, setTab] = useState("catalog");
   const [currentOrder, setCurrentOrder] = useState(null);
 
-  // Auth & Init
+  const userDataRef = useRef(null);
+  useEffect(() => {
+    userDataRef.current = userData;
+  }, [userData]);
+
+  // Auth
   useEffect(() => {
     signInAnonymously(auth);
     return onAuthStateChanged(auth, (u) => {
@@ -41,7 +46,7 @@ export default function App() {
     });
   }, []);
 
-  // User doc listener (déconnecté si pas d'email)
+  // User doc listener
   useEffect(() => {
     if (!user) return;
 
@@ -73,7 +78,7 @@ export default function App() {
     });
   }, [user]);
 
-  // Order realtime listener
+  // Current order realtime listener
   useEffect(() => {
     if (!currentOrder?.id) return;
     const unsub = onSnapshot(doc(db, "orders", currentOrder.id), (d) => {
@@ -91,14 +96,16 @@ export default function App() {
       {
         email,
         role: isAdmin ? "admin" : "user",
-        points: isAdmin ? 999 : userData?.points || 0,
         displayName: email.split(".")[0],
+        points: isAdmin ? 999 : userDataRef.current?.points || 0,
+        // solde (pour PayPal) : en centimes
+        balance_cents: userDataRef.current?.balance_cents ?? 0,
       },
       { merge: true }
     );
   };
 
-  // Déconnexion (utilisateur + admin)
+  // Déconnexion
   const handleLogout = async () => {
     if (!user) return;
 
@@ -118,7 +125,6 @@ export default function App() {
   const createOrder = async () => {
     if (!cart.length) return;
 
-    // Sécurité : refuse un panier contenant un produit en rupture
     const outOfStock = cart.find((i) => i.is_available === false);
     if (outOfStock) return alert(`Produit en rupture: ${outOfStock.name}`);
 
@@ -131,6 +137,7 @@ export default function App() {
       status: "created",
       qr_token: generateToken(),
       created_at: serverTimestamp(),
+      payment_method: null,
     };
 
     const ref = await addDoc(collection(db, "orders"), orderData);
@@ -140,22 +147,54 @@ export default function App() {
   };
 
   // ✅ Points fidélité : 1€ = 1 point
-  const payOrder = async () => {
+  const creditPoints = async (totalCents) => {
+    const prevCenti = Math.round(
+      Number(userDataRef.current?.points || 0) * 100
+    );
+    const newPoints = (prevCenti + Number(totalCents || 0)) / 100;
+    await updateDoc(doc(db, "users", user.uid), { points: newPoints });
+  };
+
+  // Paiement (Apple Pay / Google Pay / PayPal solde)
+  const payOrder = async (method) => {
     if (!currentOrder) return;
 
     const totalCents = Number(currentOrder.total_cents || 0);
 
+    // PayPal via solde
+    if (method === "paypal_balance") {
+      const balance = Number(userDataRef.current?.balance_cents || 0);
+      if (balance < totalCents) {
+        alert("Solde insuffisant pour payer via PayPal.");
+        return;
+      }
+
+      // déduire le solde
+      await updateDoc(doc(db, "users", user.uid), {
+        balance_cents: balance - totalCents,
+      });
+    }
+
     await updateDoc(doc(db, "orders", currentOrder.id), {
       status: "paid",
       paid_at: serverTimestamp(),
+      payment_method: method,
+      payment_simulated: true,
       points_earned: totalCents / 100,
     });
 
-    // éviter les erreurs float : on passe par des "centi-points"
-    const prevCenti = Math.round(Number(userData?.points || 0) * 100);
-    const newPoints = (prevCenti + totalCents) / 100;
+    await creditPoints(totalCents);
+  };
 
-    await updateDoc(doc(db, "users", user.uid), { points: newPoints });
+  // Espèces → notifier vendeur (status cash)
+  const requestCashPayment = async () => {
+    if (!currentOrder) return;
+
+    await updateDoc(doc(db, "orders", currentOrder.id), {
+      status: "cash",
+      cash_requested_at: serverTimestamp(),
+      payment_method: "cash",
+    });
   };
 
   if (view === "loading") {
@@ -190,6 +229,7 @@ export default function App() {
             <p className="text-xs text-gray-400 font-bold">COLMAR</p>
           </div>
         </div>
+
         <div className="bg-teal-50 px-3 py-1 rounded-full border border-teal-100 flex items-center gap-1">
           <span className="font-bold text-teal-800">
             {userData?.points ?? 0}
@@ -210,15 +250,15 @@ export default function App() {
         {tab === "order" && (
           <OrderFlow
             order={currentOrder}
+            user={userData}
             onPay={payOrder}
+            onRequestCash={requestCashPayment}
             onClose={() => {
               setTab("catalog");
               setCurrentOrder(null);
             }}
           />
         )}
-
-        {/* ✅ Le leaderboard est dans MOI */}
         {tab === "profile" && (
           <Profile
             user={userData}
