@@ -28,27 +28,26 @@ export default function LoginScreen() {
   const handleSendLink = async () => {
     clean();
     const e = email.trim();
+
+    // Vérification email UHA ou Admin
     if (!UHA_KV_RQ.test(e) && e !== ADMIN_EMAIL) {
-      return setError("Adresse @uha.fr obligatoire !");
+      return setError("Merci d'utiliser ton adresse universitaire @uha.fr");
     }
 
     try {
       setLoading(true);
       const actionCodeSettings = {
-        // L'URL vers laquelle l'utilisateur est redirigé après le clic
-        url: window.location.href,
+        url: window.location.href, // Redirection ici après clic
         handleCodeInApp: true,
       };
 
       await sendSignInLinkToEmail(auth, e, actionCodeSettings);
 
-      // On sauvegarde l'email pour ne pas avoir à le retaper au retour
       window.localStorage.setItem("emailForSignIn", e);
-
       setView("register_email_sent");
     } catch (err) {
       console.error(err);
-      setError("Erreur d'envoi. Vérifie l'adresse.");
+      setError("Erreur d'envoi. Vérifie ton adresse.");
     } finally {
       setLoading(false);
     }
@@ -82,23 +81,21 @@ export default function LoginScreen() {
   if (view === "welcome") {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-white font-sans">
-        <div className="w-24 h-24 bg-teal-700 rounded-full flex items-center justify-center text-white font-black text-3xl mb-6 shadow-xl animate-bounce">
+        <div className="w-24 h-24 bg-teal-700 rounded-full flex items-center justify-center text-white font-black text-3xl mb-6 shadow-xl">
           RT
         </div>
         <h1 className="text-3xl font-black text-teal-800 mb-2 text-center">
-          AMICALE SNACK
+          AMICALE R&T
         </h1>
         <p className="text-gray-500 mb-8 text-center max-w-xs">
-          Commandes, Points Fidélité & Paiement rapide.
+          Commandes & Points Fidélité
         </p>
 
         <div className="w-full max-w-sm space-y-4">
           <div className="bg-teal-50 p-6 rounded-3xl border border-teal-100 text-center">
-            <h2 className="font-black text-teal-900 text-lg mb-2">
-              Nouveau ici ?
-            </h2>
+            <h2 className="font-black text-teal-900 text-lg mb-2">Bienvenue</h2>
             <p className="text-sm text-teal-700 mb-4">
-              Crée ton compte avec ton mail UHA.
+              Entre ton email UHA pour te connecter ou t'inscrire.
             </p>
 
             <div className="space-y-3">
@@ -113,11 +110,14 @@ export default function LoginScreen() {
                 disabled={loading}
                 className="w-full shadow-lg shadow-teal-200"
               >
-                {loading ? "Envoi..." : "RECEVOIR MON LIEN"} <Mail size={18} />
+                {loading ? "Envoi..." : "RECEVOIR MON LIEN MAGIQUE"}{" "}
+                <Mail size={18} />
               </Button>
             </div>
             {error && (
-              <p className="text-red-500 text-xs font-bold mt-2">{error}</p>
+              <p className="text-red-600 text-xs font-bold mt-2 bg-red-50 p-2 rounded-lg border border-red-100">
+                {error}
+              </p>
             )}
           </div>
 
@@ -129,7 +129,7 @@ export default function LoginScreen() {
               onClick={() => setView("login")}
               className="bg-white border-2 border-gray-100 text-gray-700 px-6 py-3 rounded-xl font-black text-sm w-full hover:bg-gray-50"
             >
-              SE CONNECTER
+              CONNEXION CLASSIQUE
             </button>
           </div>
         </div>
@@ -143,12 +143,11 @@ export default function LoginScreen() {
         <div className="bg-white/20 p-6 rounded-full mb-6 backdrop-blur-sm">
           <Mail size={48} className="text-white" />
         </div>
-        <h2 className="text-2xl font-black mb-4">Vérifie tes mails !</h2>
+        <h2 className="text-2xl font-black mb-4">Vérifie ta boîte mail !</h2>
         <p className="text-teal-100 mb-8 max-w-xs mx-auto leading-relaxed">
-          Un lien magique a été envoyé à <strong>{email}</strong>.<br />
+          Un lien de connexion a été envoyé à <strong>{email}</strong>.<br />
           <br />
-          Clique dessus pour valider ton compte et{" "}
-          <strong>créer ton mot de passe</strong>.
+          Clique dessus pour accéder directement à l'application.
         </p>
         <button
           onClick={() => setView("welcome")}

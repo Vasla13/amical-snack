@@ -14,15 +14,15 @@ import {
   isSignInWithEmailLink,
   signInWithEmailLink,
   updatePassword,
-} from "firebase/auth"; // Imports auth mis à jour
+} from "firebase/auth";
 import {
   ShoppingBag,
   CreditCard,
   QrCode,
   User,
   RefreshCw,
-  Key,
   Check,
+  Gift,
 } from "lucide-react";
 
 import { auth, db } from "./config/firebase.js";
@@ -35,8 +35,9 @@ import OrderFlow from "./features/order/OrderFlow.jsx";
 import Profile from "./features/profile/Profile.jsx";
 import AdminDashboard from "./features/admin/AdminDashboard.jsx";
 import LoginScreen from "./features/auth/LoginScreen.jsx";
+import LoyaltyScreen from "./features/loyalty/LoyaltyScreen.jsx";
 import NavBtn from "./ui/NavBtn.jsx";
-import Button from "./ui/Button.jsx"; // Besoin du bouton pour l'écran creation mot de passe
+import Button from "./ui/Button.jsx";
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -47,7 +48,6 @@ export default function App() {
   const [tab, setTab] = useState("catalog");
   const [currentOrder, setCurrentOrder] = useState(null);
 
-  // État pour la création du MDP
   const [newPassword, setNewPassword] = useState("");
   const [pwdLoading, setPwdLoading] = useState(false);
 
@@ -56,65 +56,62 @@ export default function App() {
     userDataRef.current = userData;
   }, [userData]);
 
-  // 1. GESTION DU RETOUR MAIL (Magic Link)
+  // 1. RETOUR MAIL
   useEffect(() => {
     if (isSignInWithEmailLink(auth, window.location.href)) {
       let email = window.localStorage.getItem("emailForSignIn");
       if (!email) {
-        // Si l'email n'est pas dans le storage (changement d'appareil), on le demande
         email = window.prompt(
           "Confirme ton email pour finaliser la connexion :"
         );
       }
-
       if (email) {
         signInWithEmailLink(auth, email, window.location.href)
-          .then((result) => {
+          .then(() => {
             window.localStorage.removeItem("emailForSignIn");
-            // Le onAuthStateChanged va prendre le relais pour la suite
-            // On force un rechargement propre de l'URL pour enlever le code moche
             window.history.replaceState({}, document.title, "/");
           })
-          .catch((error) => {
-            alert("Lien expiré ou invalide. Recommence.");
+          .catch(() => {
+            alert("Lien invalide ou expiré.");
             setView("login");
           });
       }
     }
   }, []);
 
-  // 2. ÉCOUTE DE L'ÉTAT AUTH
+  // 2. AUTH STATE
   useEffect(() => {
     return onAuthStateChanged(auth, async (u) => {
+      if (u && (!u.email || u.isAnonymous)) {
+        await auth.signOut();
+        setUser(null);
+        setView("login");
+        return;
+      }
       setUser(u);
-
       if (!u) {
         setView("login");
         setUserData(null);
       } else {
-        // L'user est connecté. On vérifie s'il existe en base.
         const userRef = doc(db, "users", u.uid);
         const snap = await getDoc(userRef);
-
         if (!snap.exists()) {
-          // C'est un NOUVEAU (venu par lien magique)
-          // On crée son profil mais on va le forcer à créer un MDP juste après
           const isAdmin = u.email === ADMIN_EMAIL;
           await setDoc(userRef, {
             email: u.email,
-            displayName: u.email ? u.email.split("@")[0] : "Utilisateur",
+            displayName: u.email.split("@")[0],
             role: isAdmin ? "admin" : "user",
             points: isAdmin ? 9999 : 0,
             balance_cents: 0,
             created_at: serverTimestamp(),
-            setup_complete: false, // Flag important !
+            setup_complete: false,
           });
         }
       }
     });
   }, []);
 
-  // 3. ÉCOUTE DES DONNÉES UTILISATEUR
+  // 3. DONNÉES UTILISATEUR (LOGIQUE CORRIGÉE ICI)
   useEffect(() => {
     if (!user) return;
     const unsub = onSnapshot(doc(db, "users", user.uid), (s) => {
@@ -122,12 +119,11 @@ export default function App() {
         const data = s.data();
         setUserData(data);
 
-        // LOGIQUE DE ROUTAGE PRINCIPALE
-        if (data.role === "admin") {
-          setView("admin");
-        } else if (data.setup_complete === false) {
-          // Si le setup n'est pas fini (pas de mot de passe)
+        // ORDRE INVERSÉ : D'abord on vérifie le setup (mot de passe), ENSUITE le rôle
+        if (data.setup_complete === false) {
           setView("create_password");
+        } else if (data.role === "admin") {
+          setView("admin");
         } else {
           setView("app");
         }
@@ -136,7 +132,7 @@ export default function App() {
     return () => unsub();
   }, [user]);
 
-  // CATALOGUE & COMMANDES (identique)
+  // CATALOGUE
   useEffect(() => {
     if (!user) return;
     return onSnapshot(collection(db, "products"), (s) => {
@@ -144,6 +140,7 @@ export default function App() {
     });
   }, [user]);
 
+  // COMMANDE
   useEffect(() => {
     if (!currentOrder?.id) return;
     const unsub = onSnapshot(doc(db, "orders", currentOrder.id), (d) => {
@@ -152,20 +149,17 @@ export default function App() {
     return () => unsub();
   }, [currentOrder?.id]);
 
-  // FONCTION : CRÉATION DU MOT DE PASSE (FIN DU PROCESSUS)
   const handleCreatePassword = async () => {
-    if (newPassword.length < 6) return alert("6 caractères minimum stp !");
+    if (newPassword.length < 6) return alert("6 caractères min !");
     setPwdLoading(true);
     try {
       await updatePassword(user, newPassword);
-      // On marque le setup comme complet
-      await updateDoc(doc(db, "users", user.uid), {
-        setup_complete: true,
-      });
-      alert("Mot de passe créé ! Tu pourras l'utiliser la prochaine fois.");
-      // La vue passera automatiquement à "app" grâce au listener
+      await updateDoc(doc(db, "users", user.uid), { setup_complete: true });
+      alert(
+        "Mot de passe créé ! Tu pourras utiliser 'Connexion Classique' la prochaine fois."
+      );
     } catch (e) {
-      alert("Erreur : " + e.message);
+      alert("Erreur: " + e.message);
     } finally {
       setPwdLoading(false);
     }
@@ -179,12 +173,8 @@ export default function App() {
     setView("login");
   };
 
-  // ... (fonctions createOrder, payOrder, requestCashPayment identiques au précédent code)
   const createOrder = async () => {
-    /* ... code identique ... */
     if (!cart.length) return;
-    const outOfStock = cart.find((i) => i.is_available === false);
-    if (outOfStock) return alert(`Produit en rupture: ${outOfStock.name}`);
     const total = cart.reduce((s, i) => s + i.price_cents * i.qty, 0);
     const orderData = {
       user_id: user.uid,
@@ -202,7 +192,6 @@ export default function App() {
   };
 
   const payOrder = async (method) => {
-    /* ... code identique ... */
     if (!currentOrder) return;
     const totalCents = Number(currentOrder.total_cents || 0);
     if (method === "paypal_balance") {
@@ -226,7 +215,6 @@ export default function App() {
   };
 
   const requestCashPayment = async () => {
-    /* ... code identique ... */
     if (!currentOrder) return;
     await updateDoc(doc(db, "orders", currentOrder.id), {
       status: "cash",
@@ -235,19 +223,14 @@ export default function App() {
     });
   };
 
-  // --- RENDER ---
-
-  if (view === "loading") {
+  if (view === "loading")
     return (
       <div className="h-screen flex items-center justify-center text-teal-700 font-bold">
         <RefreshCw className="animate-spin mr-2" /> Chargement...
       </div>
     );
-  }
-
   if (view === "login") return <LoginScreen />;
 
-  // ÉCRAN SPÉCIAL : CRÉATION MOT DE PASSE
   if (view === "create_password") {
     return (
       <div className="h-screen flex flex-col items-center justify-center p-6 bg-white font-sans text-center">
@@ -255,16 +238,16 @@ export default function App() {
           <Check size={48} />
         </div>
         <h1 className="text-2xl font-black text-gray-800 mb-2">
-          Email vérifié !
+          Bienvenue Admin !
         </h1>
         <p className="text-gray-500 mb-8">
-          Dernière étape : choisis un mot de passe pour te connecter plus vite
-          la prochaine fois.
+          Dernière étape : choisis ton mot de passe administrateur pour te
+          connecter simplement la prochaine fois.
         </p>
         <div className="w-full max-w-sm space-y-4">
           <div className="text-left">
             <label className="text-xs font-bold text-gray-400 uppercase ml-1">
-              Nouveau mot de passe
+              Mot de passe secret
             </label>
             <input
               type="password"
@@ -279,7 +262,7 @@ export default function App() {
             disabled={pwdLoading}
             className="w-full shadow-lg shadow-green-100 bg-green-600 hover:bg-green-700"
           >
-            {pwdLoading ? "Enregistrement..." : "TERMINER L'INSCRIPTION"}
+            {pwdLoading ? "Enregistrement..." : "FINALISER LE COMPTE"}
           </Button>
         </div>
       </div>
@@ -317,7 +300,6 @@ export default function App() {
           </span>
         </div>
       </header>
-
       <main className="flex-1 overflow-y-auto pb-20 scroll-smooth">
         {tab === "catalog" && (
           <Catalog products={products} cart={cart} setCart={setCart} />
@@ -337,6 +319,9 @@ export default function App() {
             }}
           />
         )}
+        {tab === "loyalty" && (
+          <LoyaltyScreen user={userData} products={products} db={db} />
+        )}
         {tab === "profile" && (
           <Profile
             user={userData}
@@ -347,7 +332,6 @@ export default function App() {
           />
         )}
       </main>
-
       <nav className="absolute bottom-0 w-full bg-white border-t flex justify-around p-2 pb-5 z-20 shadow-[0_-5px_15px_rgba(0,0,0,0.02)]">
         <NavBtn
           icon={ShoppingBag}
@@ -361,6 +345,12 @@ export default function App() {
           onClick={() => setTab("cart")}
           label="Panier"
           badge={cart.reduce((a, c) => a + c.qty, 0)}
+        />
+        <NavBtn
+          icon={Gift}
+          active={tab === "loyalty"}
+          onClick={() => setTab("loyalty")}
+          label="Cadeaux"
         />
         <NavBtn
           icon={QrCode}

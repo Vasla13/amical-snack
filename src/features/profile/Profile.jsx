@@ -4,11 +4,9 @@ import { updatePassword } from "firebase/auth";
 import { User, LogOut, Trophy, KeyRound } from "lucide-react";
 
 export default function Profile({ user, logout, db, uid, auth }) {
-  // ✅ CORRIGÉ ICI
   const [users, setUsers] = useState([]);
   const [loadingLb, setLoadingLb] = useState(true);
 
-  // États pour changement de mot de passe
   const [showPwd, setShowPwd] = useState(false);
   const [newPwd, setNewPwd] = useState("");
   const [msg, setMsg] = useState("");
@@ -113,13 +111,29 @@ export default function Profile({ user, logout, db, uid, auth }) {
         )}
       </div>
 
-      {/* Leaderboard */}
+      {/* Leaderboard & Récompenses */}
       <div className="bg-white p-4 rounded-2xl shadow-sm mb-4 border border-gray-100">
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center justify-between mb-4 border-b border-gray-100 pb-3">
           <div className="flex items-center gap-2">
             <Trophy size={18} className="text-yellow-500" />
-            <h3 className="font-black text-gray-800">Classement</h3>
+            <h3 className="font-black text-gray-800">Classement du Mois</h3>
           </div>
+        </div>
+
+        {/* INFO RÉCOMPENSES (AJOUT) */}
+        <div className="bg-yellow-50 p-3 rounded-xl mb-4 border border-yellow-100 text-xs text-yellow-800">
+          <p className="font-bold mb-1">🏆 Récompenses fin de mois :</p>
+          <ul className="list-disc pl-4 space-y-1">
+            <li>
+              <strong>1er :</strong> 5 produits au choix
+            </li>
+            <li>
+              <strong>2ème :</strong> 3 produits au choix
+            </li>
+            <li>
+              <strong>3ème :</strong> 1 produit au choix
+            </li>
+          </ul>
         </div>
 
         <div className="space-y-2">
