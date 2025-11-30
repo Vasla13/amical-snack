@@ -56,7 +56,7 @@ try {
 }
 export const messaging = msgInstance;
 
-// Fonction pour demander la permission de notification
+// Fonction sécurisée pour demander la permission
 export const requestNotificationPermission = async () => {
   try {
     if (!messaging) {
@@ -66,9 +66,9 @@ export const requestNotificationPermission = async () => {
 
     const permission = await Notification.requestPermission();
     if (permission === "granted") {
+      // ON UTILISE LA VARIABLE D'ENVIRONNEMENT ICI
       const token = await getToken(messaging, {
-        vapidKey:
-          "BJE6pMBFWT3VBao38Nrm5uGHirSLHuA36rqk6YzJtD-CetqWRC94YPqbx1hMcWJSZQw7LmjAntCEGBYh3IOHhPQ",
+        vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY,
       });
       console.log("Token FCM:", token);
       return token;
