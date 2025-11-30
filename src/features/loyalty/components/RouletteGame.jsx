@@ -5,7 +5,8 @@ import {
   serverTimestamp,
   runTransaction,
 } from "firebase/firestore";
-import { Dices, Trophy, Loader2, Sparkles } from "lucide-react";
+import { Dices, Trophy, Loader2, Sparkles, ChevronDown } from "lucide-react";
+import confetti from "canvas-confetti"; // AJOUT : Effet confettis
 import Button from "../../../ui/Button.jsx";
 import { generateToken } from "../../../lib/token.js";
 
@@ -16,11 +17,11 @@ const ITEM_WIDTH = 120;
 const ITEM_HEIGHT = 140;
 const GAP = 12;
 
-const TOTAL_ITEMS = 70;
-const WINNER_INDEX = 55;
+const TOTAL_ITEMS = 80;
+const WINNER_INDEX = 60;
 
-const SPIN_SECONDS = 6;
-const EASING = "cubic-bezier(0.12, 0.80, 0.18, 1)";
+const SPIN_SECONDS = 7;
+const EASING = "cubic-bezier(0.15, 0.85, 0.25, 1)";
 
 // --- UTILS ---
 function normalizePoints(points) {
@@ -132,7 +133,7 @@ export default function RouletteGame({
   useEffect(() => {
     if (availableProducts.length > 0 && strip.length === 0) {
       setStrip(
-        Array.from({ length: 10 }, () =>
+        Array.from({ length: 15 }, () =>
           getRandomWeightedItem(availableProducts)
         )
       );
@@ -140,6 +141,33 @@ export default function RouletteGame({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [availableProducts.length]);
+
+  const fireConfetti = () => {
+    const end = Date.now() + 1000;
+    const colors = ["#fbbf24", "#818cf8", "#34d399"];
+
+    (function frame() {
+      if (!mountedRef.current) return;
+      confetti({
+        particleCount: 3,
+        angle: 60,
+        spread: 55,
+        origin: { x: 0 },
+        colors: colors,
+      });
+      confetti({
+        particleCount: 3,
+        angle: 120,
+        spread: 55,
+        origin: { x: 1 },
+        colors: colors,
+      });
+
+      if (Date.now() < end) {
+        requestAnimationFrame(frame);
+      }
+    })();
+  };
 
   const processTransaction = async (item) => {
     if (!db) throw new Error("DB_UNDEFINED");
@@ -185,47 +213,49 @@ export default function RouletteGame({
     onConfirm?.({
       title: "🎉 C'EST GAGNÉ !",
       text: (
-        <div className="flex flex-col items-center gap-4 py-2">
+        <div className="flex flex-col items-center gap-4 py-4 animate-in zoom-in duration-300">
           <div className="relative">
-            <div className="absolute inset-0 bg-yellow-400 blur-xl opacity-30 animate-pulse rounded-full" />
-            {wonItem?.image ? (
-              <img
-                src={wonItem.image}
-                className="w-32 h-32 object-contain relative z-10 drop-shadow-xl"
-                alt={wonItem.name}
-              />
-            ) : (
-              <div className="w-32 h-32 rounded-2xl bg-slate-900/60 border border-slate-700 flex items-center justify-center text-slate-200">
-                Aucun visuel
-              </div>
-            )}
+            <div className="absolute inset-0 bg-yellow-400 blur-2xl opacity-40 animate-pulse rounded-full" />
+            <div className="relative z-10 bg-gradient-to-br from-slate-800 to-slate-950 p-6 rounded-3xl border border-slate-700 shadow-2xl">
+              {wonItem?.image ? (
+                <img
+                  src={wonItem.image}
+                  className="w-32 h-32 object-contain drop-shadow-xl"
+                  alt={wonItem.name}
+                />
+              ) : (
+                <div className="w-32 h-32 flex items-center justify-center text-slate-400">
+                  <Trophy size={48} />
+                </div>
+              )}
+            </div>
           </div>
 
-          <div className="text-center">
-            <p className="text-gray-500 text-sm font-bold uppercase tracking-wider mb-1">
-              Tu remportes
+          <div className="text-center space-y-1">
+            <p className="text-teal-600 text-xs font-black uppercase tracking-widest">
+              Félicitations
             </p>
-            <p className="text-xl font-black text-gray-900 leading-tight">
+            <p className="text-2xl font-black text-slate-800 leading-tight">
               {wonItem?.name}
             </p>
             {price && (
-              <p className="mt-2 inline-flex items-center gap-2 text-sm font-semibold text-slate-700">
-                <span className="px-2 py-1 rounded-full bg-slate-100 border border-slate-200">
+              <div className="pt-2">
+                <span className="inline-block px-3 py-1 bg-slate-100 text-slate-600 text-xs font-bold rounded-full border border-slate-200">
                   Valeur : {price}
                 </span>
-              </p>
+              </div>
             )}
           </div>
         </div>
       ),
-      confirmText: "VOIR MON PASS",
+      confirmText: "VOIR MON CADEAU",
       cancelText: "REJOUER",
       onOk: () => onGoToPass?.(),
       onCancel: () => {
         setGameState("idle");
         winnerRef.current = null;
         setStrip(
-          Array.from({ length: 10 }, () =>
+          Array.from({ length: 15 }, () =>
             getRandomWeightedItem(availableProducts)
           )
         );
@@ -245,7 +275,6 @@ export default function RouletteGame({
       return notify?.("Stock vide !", "error");
     if (gameState === "spinning" || gameState === "saving") return;
 
-    // 1) Choix du gagnant + strip
     const winnerItem = getRandomWeightedItem(availableProducts);
     if (!winnerItem) return notify?.("Stock vide !", "error");
     winnerRef.current = winnerItem;
@@ -258,7 +287,6 @@ export default function RouletteGame({
     setStrip(gameStrip);
     setGameState("spinning");
 
-    // 2) Attente DOM + animation
     await nextFrame();
     await nextFrame();
     if (!mountedRef.current) return;
@@ -281,7 +309,7 @@ export default function RouletteGame({
 
     const offset = containerWidth / 2 - ITEM_WIDTH / 2;
     const targetLeft = WINNER_INDEX * (ITEM_WIDTH + GAP);
-    const randomShift = Math.floor(Math.random() * 36) - 18;
+    const randomShift = Math.floor(Math.random() * 24) - 12;
     const finalX = -(targetLeft - offset + randomShift);
 
     if (prefersReducedMotion()) {
@@ -299,13 +327,11 @@ export default function RouletteGame({
       try {
         await anim.finished;
       } catch {
-        // cancel => stop clean
         return;
       } finally {
         animationRef.current = null;
       }
     } else {
-      // Fallback transition
       el.style.transition = `transform ${SPIN_SECONDS}s ${EASING}`;
       el.style.transform = `translate3d(${finalX}px,0,0)`;
       await new Promise((r) => setTimeout(r, SPIN_SECONDS * 1000));
@@ -313,7 +339,6 @@ export default function RouletteGame({
 
     if (!mountedRef.current) return;
 
-    // 3) Transaction après l’anim
     setGameState("saving");
     try {
       await processTransaction(winnerItem);
@@ -330,7 +355,8 @@ export default function RouletteGame({
     if (!mountedRef.current) return;
 
     setGameState("won");
-    showWinModal(winnerItem);
+    fireConfetti(); // 🎉 Lancement des confettis
+    setTimeout(() => showWinModal(winnerItem), 800);
   };
 
   return (
@@ -340,39 +366,47 @@ export default function RouletteGame({
         <h2 className="font-black text-xl text-slate-800 dark:text-white flex items-center gap-2">
           <Dices className="text-purple-600" size={24} strokeWidth={2.5} />
           <span className="bg-clip-text text-transparent bg-gradient-to-r from-purple-600 to-indigo-600">
-            La Roulette
+            Mystery Box
           </span>
         </h2>
 
         <div className="text-right">
           <span className="text-xs font-bold text-slate-500 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-full shadow-sm">
-            Coût : {COST} pts
+            {COST} pts / tirage
           </span>
         </div>
       </div>
 
-      {/* Zone roulette */}
-      <div className="relative bg-slate-900 rounded-[2rem] p-1 shadow-xl shadow-slate-900/20 overflow-hidden border border-slate-800">
-        {/* Background Effects */}
-        <div className="absolute top-0 right-0 w-64 h-64 bg-purple-500 rounded-full mix-blend-overlay filter blur-3xl opacity-20 -mr-16 -mt-16 pointer-events-none"></div>
-        <div className="absolute bottom-0 left-0 w-64 h-64 bg-indigo-500 rounded-full mix-blend-overlay filter blur-3xl opacity-20 -ml-16 -mb-16 pointer-events-none"></div>
+      {/* Zone jeu */}
+      <div className="relative bg-slate-900 rounded-[2.5rem] p-1.5 shadow-2xl shadow-slate-900/30 overflow-hidden border border-slate-800 ring-4 ring-slate-100 dark:ring-slate-800/50">
+        {/* Décors de fond */}
+        <div className="absolute top-0 right-0 w-full h-full bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-indigo-500/20 via-transparent to-transparent pointer-events-none opacity-50"></div>
+        <div className="absolute bottom-0 left-0 w-full h-full bg-[radial-gradient(ellipse_at_bottom_left,_var(--tw-gradient-stops))] from-purple-500/20 via-transparent to-transparent pointer-events-none opacity-50"></div>
 
-        <div className="relative z-10 px-4 py-6">
-          {/* Masques */}
-          <div className="pointer-events-none absolute inset-y-0 left-0 w-16 bg-gradient-to-r from-slate-900 to-transparent z-20" />
-          <div className="pointer-events-none absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-slate-900 to-transparent z-20" />
+        <div className="relative z-10 bg-slate-950/80 backdrop-blur-sm rounded-[2rem] border border-slate-800/50 px-0 py-8 overflow-hidden">
+          {/* Masques ombres */}
+          <div className="pointer-events-none absolute inset-y-0 left-0 w-24 bg-gradient-to-r from-slate-950 to-transparent z-20" />
+          <div className="pointer-events-none absolute inset-y-0 right-0 w-24 bg-gradient-to-l from-slate-950 to-transparent z-20" />
 
-          {/* Marqueur central */}
-          <div className="pointer-events-none absolute inset-y-0 left-1/2 w-0.5 bg-gradient-to-b from-yellow-400 via-yellow-300 to-transparent z-30 opacity-50" />
-          <div className="pointer-events-none absolute top-3 left-1/2 -translate-x-1/2 z-30">
-            <div className="w-0 h-0 border-l-8 border-r-8 border-t-[12px] border-l-transparent border-r-transparent border-t-yellow-400 drop-shadow-lg" />
+          {/* MARQUEUR CENTRAL : Juste les flèches, sans ligne */}
+          <div className="pointer-events-none absolute top-0 bottom-0 left-1/2 -translate-x-1/2 z-30 flex flex-col justify-between items-center py-2">
+            <ChevronDown
+              className="text-yellow-400 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]"
+              size={32}
+              strokeWidth={4}
+            />
+            <ChevronDown
+              className="text-yellow-400 drop-shadow-[0_-2px_4px_rgba(0,0,0,0.8)] rotate-180"
+              size={32}
+              strokeWidth={4}
+            />
           </div>
 
-          {/* Bande */}
-          <div ref={containerRef} className="relative overflow-hidden w-full">
+          {/* Bande de défilement */}
+          <div ref={containerRef} className="relative w-full">
             <div
               ref={stripRef}
-              className="flex items-center will-change-transform py-4"
+              className="flex items-center will-change-transform"
               style={{
                 gap: `${GAP}px`,
                 transform: "translate3d(0px,0px,0px)",
@@ -380,36 +414,41 @@ export default function RouletteGame({
             >
               {strip.map((item, index) => {
                 if (!item) return null;
-                const isWinnerSpot = index === WINNER_INDEX;
+                const isWon = gameState === "won" && index === WINNER_INDEX;
 
                 return (
                   <div
                     key={`${item.id}-${index}`}
                     className={[
-                      "flex-shrink-0 rounded-2xl flex flex-col items-center justify-center px-2 transition-all duration-300",
-                      isWinnerSpot
-                        ? "border-2 border-yellow-400/50 bg-gradient-to-b from-yellow-500/10 to-slate-800 shadow-[0_0_20px_rgba(250,204,21,0.2)] scale-105"
-                        : "border border-white/5 bg-white/5",
+                      "flex-shrink-0 relative rounded-2xl flex flex-col items-center justify-center transition-all duration-500",
+                      "bg-slate-800 border border-slate-700", // Fond uni pour meilleure visibilité
+                      isWon
+                        ? "scale-105 border-yellow-400 shadow-[0_0_30px_rgba(250,204,21,0.3)] z-10 bg-slate-700"
+                        : "",
                     ].join(" ")}
                     style={{ width: ITEM_WIDTH, height: ITEM_HEIGHT }}
                   >
-                    <div className="relative mb-3">
+                    {isWon && (
+                      <div className="absolute inset-0 bg-yellow-400/10 rounded-2xl animate-pulse" />
+                    )}
+
+                    <div className="relative mb-3 z-10">
                       {item.image ? (
                         <img
                           src={item.image}
                           alt={item.name}
-                          className="relative z-10 w-16 h-16 object-contain drop-shadow-[0_4px_12px_rgba(0,0,0,0.5)]"
+                          className="w-20 h-20 object-contain drop-shadow-md"
                         />
                       ) : (
-                        <div className="relative z-10 w-16 h-16 rounded-xl bg-slate-800/60 border border-slate-700 flex items-center justify-center text-slate-200 text-xs">
-                          N/A
+                        <div className="w-20 h-20 rounded-xl bg-slate-900/50 flex items-center justify-center text-slate-500 text-xs">
+                          ?
                         </div>
                       )}
                     </div>
 
                     <p
-                      className={`text-[10px] font-bold text-center leading-tight line-clamp-2 ${
-                        isWinnerSpot ? "text-yellow-100" : "text-slate-300"
+                      className={`relative z-10 text-[11px] font-bold text-center leading-tight line-clamp-2 px-2 ${
+                        isWon ? "text-yellow-100" : "text-slate-300"
                       }`}
                     >
                       {item.name}
@@ -421,34 +460,36 @@ export default function RouletteGame({
           </div>
         </div>
 
-        {/* Bouton Action */}
-        <div className="p-5 pt-0 flex justify-center relative z-10">
+        {/* Bouton */}
+        <div className="p-5 pt-2 flex justify-center relative z-20 -mt-4">
           <Button
             onClick={handleSpin}
             disabled={
               !canPlay || gameState === "spinning" || gameState === "saving"
             }
-            className={`w-full max-w-xs shadow-xl transition-all ${
+            className={`w-full max-w-xs shadow-2xl transition-all border-t border-white/10 ${
               !canPlay || gameState === "spinning" || gameState === "saving"
-                ? "bg-slate-800 text-slate-500 border border-slate-700"
-                : "bg-purple-600 hover:bg-purple-500 text-white shadow-purple-500/30 border border-purple-500/50"
+                ? "bg-slate-800 text-slate-500 cursor-not-allowed"
+                : "bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-500/40"
             }`}
           >
             {gameState === "saving" ? (
               <span className="flex items-center gap-2">
-                <Loader2 className="animate-spin" size={18} /> Enregistrement...
+                <Loader2 className="animate-spin" size={18} /> Validation...
               </span>
             ) : gameState === "spinning" ? (
               <span className="flex items-center gap-2">
-                <Loader2 className="animate-spin" size={18} /> Bonne chance...
+                <Loader2 className="animate-spin" size={18} /> Les jeux sont
+                faits...
               </span>
             ) : gameState === "won" ? (
-              <span className="flex items-center gap-2 text-yellow-300">
-                <Trophy size={18} /> C'EST GAGNÉ !
+              <span className="flex items-center gap-2 text-indigo-100">
+                <Trophy size={18} className="text-yellow-400" /> BINGO !
               </span>
             ) : (
               <span className="flex items-center gap-2">
-                <Sparkles size={18} /> LANCER ({COST} PTS)
+                <Sparkles size={18} className="text-yellow-300" /> TENTER SA
+                CHANCE
               </span>
             )}
           </Button>
