@@ -31,8 +31,6 @@ export default function LoginScreen() {
     setLoading(false);
   };
 
-  // --- ACTIONS ---
-
   const handleSendLink = async () => {
     clean();
     const e = email.trim();
@@ -42,7 +40,7 @@ export default function LoginScreen() {
     try {
       setLoading(true);
       const actionCodeSettings = {
-        url: window.location.href,
+        url: window.location.href, // Redirige vers la même URL (racine)
         handleCodeInApp: true,
       };
       await sendSignInLinkToEmail(auth, e, actionCodeSettings);
@@ -62,6 +60,7 @@ export default function LoginScreen() {
     try {
       setLoading(true);
       await signInWithEmailAndPassword(auth, email, password);
+      // AuthContext gérera la redirection auto vers "/"
     } catch {
       setError("Identifiants incorrects.");
     } finally {
@@ -85,11 +84,9 @@ export default function LoginScreen() {
     else handleLogin();
   };
 
-  // --- VUE : EMAIL ENVOYÉ ---
   if (emailSent) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-slate-50 relative overflow-hidden">
-        {/* Background blobs */}
         <div className="absolute top-0 left-0 w-64 h-64 bg-teal-500/10 rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2" />
         <div className="absolute bottom-0 right-0 w-64 h-64 bg-purple-500/10 rounded-full blur-3xl translate-x-1/2 translate-y-1/2" />
 
@@ -117,15 +114,12 @@ export default function LoginScreen() {
     );
   }
 
-  // --- VUE : LOGIN FORM ---
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-slate-50 font-sans relative overflow-hidden">
-      {/* Background Decor */}
       <div className="absolute top-0 right-0 w-96 h-96 bg-teal-400/10 rounded-full blur-[100px] pointer-events-none" />
       <div className="absolute bottom-0 left-0 w-80 h-80 bg-purple-400/10 rounded-full blur-[100px] pointer-events-none" />
 
       <div className="w-full max-w-md relative z-10">
-        {/* LOGO HEADER */}
         <div className="flex flex-col items-center mb-8">
           <div className="relative w-32 h-32 mb-4 group">
             <div className="absolute inset-0 bg-teal-500/20 blur-xl rounded-full group-hover:bg-teal-500/30 transition-all duration-500" />
@@ -143,9 +137,7 @@ export default function LoginScreen() {
           </p>
         </div>
 
-        {/* CARD CONTAINER */}
         <div className="bg-white rounded-[2.5rem] shadow-2xl shadow-slate-200/50 overflow-hidden border border-slate-100">
-          {/* TABS HEADER */}
           <div className="flex p-2 bg-slate-50/80 gap-1 border-b border-slate-100">
             <button
               onClick={() => {
@@ -193,10 +185,8 @@ export default function LoginScreen() {
             </button>
           </div>
 
-          {/* FORM BODY */}
           <div className="p-8 pt-6">
             <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Messages Feedback */}
               <AnimatePresence mode="wait">
                 {error && (
                   <motion.div
@@ -220,7 +210,6 @@ export default function LoginScreen() {
                 )}
               </AnimatePresence>
 
-              {/* Input Email (Toujours visible) */}
               <div className="space-y-1">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider ml-3">
                   Email Universitaire
@@ -240,7 +229,6 @@ export default function LoginScreen() {
                 </div>
               </div>
 
-              {/* Input Password (Seulement en mode password) */}
               <AnimatePresence>
                 {mode === "password" && (
                   <motion.div
@@ -278,7 +266,6 @@ export default function LoginScreen() {
                 )}
               </AnimatePresence>
 
-              {/* Submit Button */}
               <Button
                 disabled={loading}
                 className="w-full py-4 text-sm mt-4 shadow-lg shadow-teal-500/20"
@@ -294,7 +281,6 @@ export default function LoginScreen() {
                 )}
               </Button>
 
-              {/* Footer info text */}
               <p className="text-center text-[10px] text-slate-400 font-medium leading-relaxed pt-2">
                 {mode === "magic"
                   ? "Idéal pour une première connexion ou si tu as oublié ton mot de passe."
