@@ -48,7 +48,13 @@ export default function LoginScreen() {
       setEmailSent(true);
     } catch (err) {
       console.error(err);
-      setError("Impossible d'envoyer le lien. Vérifie ton email.");
+      if (err?.code === "auth/quota-exceeded") {
+        setError(
+          "Quota email Firebase depasse pour aujourd'hui. Reessaie plus tard ou contacte un admin."
+        );
+      } else {
+        setError("Impossible d'envoyer le lien. Verifie ton email.");
+      }
     } finally {
       setLoading(false);
     }

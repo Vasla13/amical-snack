@@ -12,7 +12,8 @@ import {
   isSignInWithEmailLink,
   signInWithEmailLink,
   updatePassword,
-  onAuthStateChanged,
+  linkWithCredential,
+  EmailAuthProvider,
 } from "firebase/auth";
 import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
 
@@ -113,12 +114,35 @@ export default function App() {
     setPwdLoading(true);
     try {
       const currentUser = auth.currentUser;
-      if (!currentUser) throw new Error("Session perdue.");
+      if (!currentUser) throw new Error("Session perdue, reconnecte-toi.");
+      if (!currentUser.email) throw new Error("Email manquant sur le compte.");
 
-      // 1. On met à jour le mot de passe sur le compte AUTH
-      await updatePassword(currentUser, newPassword);
+      const credential = EmailAuthProvider.credential(
+        currentUser.email,
+        newPassword
+      );
 
-      // 2. On marque le compte comme configuré dans FIRESTORE
+      try {
+        // Ajoute le provider password après la connexion par lien magique
+        await linkWithCredential(currentUser, credential);
+      } catch (err) {
+        if (err.code === "auth/provider-already-linked") {
+          // Le provider password existe déjà : on ne fait qu'actualiser le mot de passe
+          await updatePassword(currentUser, newPassword);
+        } else if (err.code === "auth/requires-recent-login") {
+          await auth.signOut();
+          throw new Error(
+            "Session expirée. Clique à nouveau sur le lien magique puis réessaie."
+          );
+        } else if (err.code === "auth/credential-already-in-use") {
+          throw new Error(
+            "Un compte existe déjà avec cet email. Connecte-toi puis réinitialise ton mot de passe si besoin."
+          );
+        } else {
+          throw err;
+        }
+      }
+
       await updateDoc(doc(db, "users", currentUser.uid), {
         setup_complete: true,
       });
@@ -127,7 +151,7 @@ export default function App() {
       // La redirection se fera automatiquement via le ProtectedRoute car setup_complete sera true
     } catch (e) {
       console.error(e);
-      notify("Erreur: " + e.message, "error");
+      notify("Erreur: " + (e.message || "Impossible d'enregistrer."), "error");
     } finally {
       setPwdLoading(false);
     }
