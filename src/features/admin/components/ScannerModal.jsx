@@ -1,199 +1,142 @@
-import React, { useEffect, useRef, useState } from "react";
-import { Camera, X, Flashlight } from "lucide-react";
-import QrScanner from "qr-scanner";
-
-// NOTE: Les lignes d'import du worker ont été retirées car elles ne sont plus nécessaires
-// avec les versions récentes de qr-scanner et provoquaient un warning.
+import React, { useState, useEffect } from "react";
+// CORRECTION : On importe 'Scanner' et non 'QrScanner' (changement de la librairie)
+import { Scanner } from "@yudiel/react-qr-scanner";
+import { X, Scan, Zap, ZapOff } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 
 export default function ScannerModal({ open, onClose, onScan }) {
-  const videoRef = useRef(null);
-  const scannerRef = useRef(null);
-
-  const [error, setError] = useState("");
-  const [torchSupported, setTorchSupported] = useState(false);
-  const [torchOn, setTorchOn] = useState(false);
-
-  // Nettoie le token scanné (retire les URL, espaces, etc.)
-  const normalizeToken = (raw) => {
-    if (!raw) return "";
-    const s = String(raw).trim();
-    if (s.includes("http://") || s.includes("https://")) {
-      const last = s.split("/").filter(Boolean).pop() || s;
-      return last.trim().toUpperCase();
-    }
-    return s.toUpperCase();
-  };
-
-  // Arrêt propre du scanner
-  const stopScanner = () => {
-    if (scannerRef.current) {
-      try {
-        scannerRef.current.stop();
-        scannerRef.current.destroy();
-      } catch (e) {
-        console.warn("Erreur arrêt scanner:", e);
-      }
-      scannerRef.current = null;
-    }
-    setTorchSupported(false);
-    setTorchOn(false);
-  };
-
-  const toggleTorch = async () => {
-    const sc = scannerRef.current;
-    if (!sc) return;
-    try {
-      await sc.toggleFlash();
-      const isOn = await sc.isFlashOn();
-      setTorchOn(isOn);
-    } catch (e) {
-      console.warn("Erreur torch:", e);
-    }
-  };
+  const [flash, setFlash] = useState(false);
+  const [cameraActive, setCameraActive] = useState(false);
 
   useEffect(() => {
-    // Si la modale n'est pas ouverte, on ne fait rien.
-    if (!open) {
-      return;
+    let timer;
+    if (open) {
+      // Petit délai pour l'animation fluide
+      timer = setTimeout(() => setCameraActive(true), 300);
+    } else {
+      setCameraActive(false);
+      setFlash(false);
     }
+    return () => clearTimeout(timer);
+  }, [open]);
 
-    let isMounted = true;
-
-    const startScanner = async () => {
-      setError("");
-
-      if (!window.isSecureContext) {
-        if (isMounted)
-          setError("Caméra bloquée : HTTPS requis (sauf localhost).");
-        return;
+  // Nouvelle méthode de gestion du scan pour la v2 de la librairie
+  // Elle renvoie un tableau d'objets, on prend le premier
+  const handleScan = (detectedCodes) => {
+    if (detectedCodes && detectedCodes.length > 0) {
+      const code = detectedCodes[0].rawValue;
+      if (code) {
+        if (navigator.vibrate) navigator.vibrate(50);
+        onScan(code);
+        onClose();
       }
+    }
+  };
 
-      // Petit délai pour laisser le temps au DOM (video) d'apparaître
-      await new Promise((r) => setTimeout(r, 50));
-
-      if (!videoRef.current) return;
-
-      try {
-        // Sécurité : on arrête l'ancien avant d'en créer un nouveau
-        stopScanner();
-
-        const scanner = new QrScanner(
-          videoRef.current,
-          (result) => {
-            if (!isMounted) return;
-            const raw = typeof result === "string" ? result : result?.data;
-            const token = normalizeToken(raw);
-            if (token) {
-              onScan(token);
-              onClose(); // On ferme automatiquement après un succès
-            }
-          },
-          {
-            preferredCamera: "environment", // Caméra arrière
-            highlightScanRegion: true,
-            highlightCodeOutline: true,
-            maxScansPerSecond: 5, // Suffisant et économise la batterie
-          }
-        );
-
-        scannerRef.current = scanner;
-        await scanner.start();
-
-        if (isMounted) {
-          try {
-            const has = await scanner.hasFlash();
-            setTorchSupported(!!has);
-          } catch {
-            setTorchSupported(false);
-          }
-        }
-      } catch (err) {
-        console.error(err);
-        if (isMounted) {
-          setError(
-            "Impossible d'accéder à la caméra. Vérifie les permissions."
-          );
-        }
-      }
-    };
-
-    startScanner();
-
-    // Cleanup lors du démontage ou fermeture (quand open passe à false)
-    return () => {
-      isMounted = false;
-      stopScanner();
-    };
-  }, [open, onClose, onScan]);
-
-  if (!open) return null;
+  const handleError = (error) => {
+    console.warn("Erreur scanner:", error?.message);
+  };
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="w-full sm:max-w-md bg-white rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
-        {/* En-tête */}
-        <div className="flex items-center justify-between p-4 border-b bg-white z-10">
-          <div className="font-black text-gray-800 flex items-center gap-2 text-lg">
-            <Camera className="text-teal-700" />
-            Scanner QR
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          initial={{ opacity: 0, y: "100%" }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: "100%" }}
+          transition={{ type: "spring", damping: 25, stiffness: 300 }}
+          className="fixed inset-0 z-[9999] bg-black flex flex-col"
+        >
+          {/* HEADER */}
+          <div className="relative z-20 flex items-center justify-between px-4 py-4 bg-gradient-to-b from-black/80 to-transparent">
+            <div className="flex items-center gap-2 text-white/80">
+              <Scan size={20} className="text-teal-400" />
+              <span className="text-sm font-bold tracking-wider uppercase">
+                Scan Commande
+              </span>
+            </div>
+            <button
+              onClick={onClose}
+              className="p-2 rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors active:scale-95"
+            >
+              <X size={24} />
+            </button>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors"
-            aria-label="Fermer"
-          >
-            <X size={20} />
-          </button>
-        </div>
 
-        {/* Zone Vidéo */}
-        <div className="relative bg-black flex-1 min-h-[300px] flex flex-col">
-          <video
-            ref={videoRef}
-            className="w-full h-full object-cover absolute inset-0"
-            muted
-            playsInline
-          />
+          {/* ZONE VIDÉO */}
+          <div className="flex-1 relative overflow-hidden flex items-center justify-center bg-slate-900">
+            {cameraActive ? (
+              <Scanner
+                onScan={handleScan}
+                onError={handleError}
+                components={{
+                  audio: false,
+                  torch: flash,
+                  zoom: true,
+                }}
+                styles={{
+                  container: { width: "100%", height: "100%" },
+                  video: { width: "100%", height: "100%", objectFit: "cover" },
+                }}
+              />
+            ) : (
+              <div className="flex flex-col items-center gap-3 text-slate-500 animate-pulse">
+                <Scan size={48} />
+                <span className="text-xs font-bold uppercase tracking-widest">
+                  Initialisation caméra...
+                </span>
+              </div>
+            )}
 
-          {/* Overlay Viseur */}
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-            <div className="w-64 h-64 border-2 border-white/40 rounded-3xl relative shadow-[0_0_0_9999px_rgba(0,0,0,0.5)]">
-              {/* Coins du viseur */}
-              <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-teal-500 -mt-1 -ml-1 rounded-tl-xl" />
-              <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-teal-500 -mt-1 -mr-1 rounded-tr-xl" />
-              <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-teal-500 -mb-1 -ml-1 rounded-bl-xl" />
-              <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-teal-500 -mb-1 -mr-1 rounded-br-xl" />
+            {/* OVERLAY SOMBRE */}
+            <div className="absolute inset-0 bg-black/60 pointer-events-none"></div>
+
+            {/* VISEUR ANIMÉ */}
+            <div className="absolute inset-0 pointer-events-none flex items-center justify-center p-6">
+              <div className="relative w-64 h-64 rounded-3xl z-10">
+                {/* Coins */}
+                <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-teal-500 rounded-tl-[1rem] -mt-1 -ml-1 drop-shadow-[0_0_10px_rgba(20,184,166,0.5)]" />
+                <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-teal-500 rounded-tr-[1rem] -mt-1 -mr-1 drop-shadow-[0_0_10px_rgba(20,184,166,0.5)]" />
+                <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-teal-500 rounded-bl-[1rem] -mb-1 -ml-1 drop-shadow-[0_0_10px_rgba(20,184,166,0.5)]" />
+                <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-teal-500 rounded-br-[1rem] -mb-1 -mr-1 drop-shadow-[0_0_10px_rgba(20,184,166,0.5)]" />
+
+                {/* Cadre fin interne */}
+                <div className="absolute inset-2 border-2 border-teal-500/30 rounded-2xl" />
+
+                {/* Laser scan */}
+                <div
+                  className="absolute inset-x-0 h-0.5 bg-teal-400/80 shadow-[0_0_15px_rgba(45,212,191,0.8)] animate-[scan_3s_ease-in-out_infinite_alternate]"
+                  style={{ top: "50%" }}
+                />
+
+                <div className="absolute -bottom-14 left-0 right-0 text-center">
+                  <p className="text-white/90 text-xs font-bold bg-black/60 px-4 py-1.5 rounded-full inline-block backdrop-blur-md border border-white/10">
+                    Placez le QR Code ici
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Bouton Flash */}
-          {torchSupported && (
+          {/* FOOTER FLASH */}
+          <div className="relative z-20 p-6 pb-10 bg-gradient-to-t from-black/90 to-transparent flex justify-center">
             <button
-              onClick={toggleTorch}
-              className={`absolute bottom-6 right-6 p-4 rounded-full shadow-lg transition-transform active:scale-90 ${
-                torchOn
-                  ? "bg-yellow-400 text-black"
-                  : "bg-white/10 text-white backdrop-blur-md border border-white/20"
+              onClick={() => setFlash(!flash)}
+              className={`w-16 h-16 rounded-full flex items-center justify-center border-2 transition-all active:scale-90 ${
+                flash
+                  ? "bg-yellow-400 text-slate-900 border-yellow-400 shadow-[0_0_30px_rgba(250,204,21,0.4)]"
+                  : "bg-white/10 text-white border-white/20 hover:bg-white/20"
               }`}
             >
-              <Flashlight size={24} fill={torchOn ? "currentColor" : "none"} />
+              {flash ? (
+                <Zap size={28} fill="currentColor" />
+              ) : (
+                <ZapOff size={28} />
+              )}
             </button>
-          )}
-        </div>
-
-        {/* Pied de page / Erreurs */}
-        <div className="p-4 bg-white">
-          {error ? (
-            <div className="text-sm text-red-600 font-bold bg-red-50 border border-red-100 p-3 rounded-xl flex items-center gap-3">
-              <span className="text-xl">⚠️</span> {error}
-            </div>
-          ) : (
-            <div className="text-center text-gray-500 text-sm font-medium">
-              Place le QR Code client dans le cadre.
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }
