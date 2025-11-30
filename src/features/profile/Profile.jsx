@@ -1,17 +1,43 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { collection, onSnapshot } from "firebase/firestore";
 import { updatePassword } from "firebase/auth";
-import { User, LogOut, Trophy, KeyRound, Sparkles, Medal } from "lucide-react";
-import NotificationButton from "./NotificationButton"; // AJOUT Import du composant créé plus haut
+import {
+  User,
+  LogOut,
+  Trophy,
+  KeyRound,
+  Sparkles,
+  Medal,
+  Settings,
+  Crown,
+  CreditCard,
+  ShieldCheck,
+  BellRing,
+} from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import NotificationButton from "./NotificationButton";
+import Button from "../../ui/Button";
+
+// Petit utilitaire pour les initiales
+const getInitials = (name) => {
+  return name
+    ? name
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2)
+    : "?";
+};
 
 export default function Profile({ user, logout, db, uid, auth }) {
   const [users, setUsers] = useState([]);
-  const [showPwd, setShowPwd] = useState(false);
-  const [newPwd, setNewPwd] = useState("");
-  const [msg, setMsg] = useState("");
+  const [activeTab, setActiveTab] = useState("stats"); // 'stats' | 'leaderboard' | 'settings'
 
-  // AJOUT : État pour le filtre temporel
-  const [timeframe, setTimeframe] = useState("all"); // 'all' | 'month'
+  const [newPwd, setNewPwd] = useState("");
+  const [pwdMsg, setPwdMsg] = useState(null);
+  const [pwdError, setPwdError] = useState(null);
+  const [timeframe, setTimeframe] = useState("all");
 
   useEffect(() => {
     if (!db) return;
@@ -20,29 +46,27 @@ export default function Profile({ user, logout, db, uid, auth }) {
     });
   }, [db]);
 
-  const changePassword = async () => {
-    if (newPwd.length < 6) return alert("6 caractères min.");
+  const changePasswordAction = async () => {
+    setPwdMsg(null);
+    setPwdError(null);
+    if (newPwd.length < 6) return setPwdError("6 caractères minimum.");
     try {
       if (!auth.currentUser) return;
       await updatePassword(auth.currentUser, newPwd);
-      setMsg("Mot de passe modifié !");
+      setPwdMsg("Mot de passe mis à jour !");
       setNewPwd("");
-      setTimeout(() => setShowPwd(false), 2000);
-    } catch {
-      alert("Erreur : reconnecte-toi pour changer le mot de passe.");
+    } catch (e) {
+      setPwdError("Reconnecte-toi pour modifier le mot de passe.");
     }
   };
 
   const leaderboard = useMemo(() => {
-    // Calcul de la clé du mois courant (ex: "2023-10")
     const currentMonthKey = new Date().toISOString().slice(0, 7);
-
     const list = (users || [])
       .filter((u) => !!u.email && u.role !== "admin")
       .map((u) => ({
         id: u.id,
         name: u.displayName || u.email.split("@")[0],
-        // Logique de bascule des points
         points:
           timeframe === "month"
             ? u.points_history?.[currentMonthKey] || 0
@@ -59,215 +83,364 @@ export default function Profile({ user, logout, db, uid, auth }) {
       .replace(/[.,]00$/, "");
 
   const badges = [
-    { name: "Bienvenue", icon: "👋", unlocked: true },
-    { name: "Caféinomane", icon: "☕", unlocked: (user?.points || 0) > 20 },
-    { name: "Gros Mangeur", icon: "🍔", unlocked: (user?.points || 0) > 50 },
-    { name: "VIP", icon: "👑", unlocked: user?.role === "admin" },
+    {
+      name: "Bienvenue",
+      icon: "👋",
+      unlocked: true,
+      desc: "Première connexion",
+    },
+    {
+      name: "Caféinomane",
+      icon: "☕",
+      unlocked: (user?.points || 0) > 20,
+      desc: "20 pts cumulés",
+    },
+    {
+      name: "Gros Mangeur",
+      icon: "🍔",
+      unlocked: (user?.points || 0) > 50,
+      desc: "50 pts cumulés",
+    },
+    {
+      name: "Légende",
+      icon: "👑",
+      unlocked: user?.role === "admin",
+      desc: "Être Admin",
+    },
   ];
 
   return (
-    <div className="px-4 pb-8 pt-2 space-y-6">
-      {/* CARTE FIDÉLITÉ */}
-      <div className="relative overflow-hidden bg-slate-900 rounded-[2rem] p-6 text-white shadow-xl shadow-slate-900/20">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-teal-500 rounded-full mix-blend-overlay filter blur-3xl opacity-20 -mr-16 -mt-16"></div>
-        <div className="absolute bottom-0 left-0 w-64 h-64 bg-purple-500 rounded-full mix-blend-overlay filter blur-3xl opacity-20 -ml-16 -mb-16"></div>
-
-        <div className="relative z-10 flex flex-col h-32 justify-between">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-1">
-                Solde actuel
-              </p>
-              <div className="flex items-baseline gap-1">
-                <span className="text-5xl font-black tracking-tighter">
-                  {fmtPoints(user?.points)}
-                </span>
-                <span className="text-teal-400 font-bold">PTS</span>
-              </div>
-            </div>
-            <Sparkles className="text-yellow-400 animate-pulse w-6 h-6" />
-          </div>
-          <div className="flex items-center gap-3 mt-auto">
-            <div className="w-8 h-8 rounded-full bg-white/10 backdrop-blur flex items-center justify-center">
-              <User className="text-teal-300 w-4 h-4" />
-            </div>
-            <div>
-              <p className="font-bold text-sm leading-none">
-                {user?.displayName || "Membre"}
-              </p>
-              <p className="text-[10px] text-slate-400 font-medium mt-0.5 opacity-80">
-                {user?.email}
-              </p>
-            </div>
-          </div>
-        </div>
+    <div className="min-h-full pb-24 px-4 pt-4 bg-slate-50 relative overflow-hidden font-sans">
+      {/* Background Ambience */}
+      <div className="fixed top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
+        <div className="absolute top-[-10%] right-[-10%] w-[500px] h-[500px] bg-teal-400/10 rounded-full blur-[100px]" />
+        <div className="absolute bottom-[-10%] left-[-10%] w-[500px] h-[500px] bg-purple-400/10 rounded-full blur-[100px]" />
       </div>
 
-      {/* BADGES */}
-      <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800">
-        <h3 className="font-black text-lg text-slate-800 dark:text-white flex items-center gap-2 mb-4">
-          <Medal className="text-purple-500" size={20} /> Mes Succès
-        </h3>
-        <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
-          {badges.map((badge) => (
-            <div
-              key={badge.name}
-              className={`flex flex-col items-center min-w-[70px] transition-all ${
-                badge.unlocked ? "" : "opacity-40 grayscale"
-              }`}
-            >
-              <div
-                className={`w-12 h-12 rounded-full flex items-center justify-center text-2xl mb-2 border ${
-                  badge.unlocked
-                    ? "bg-purple-50 border-purple-100 dark:bg-slate-800 dark:border-slate-700"
-                    : "bg-slate-100 border-slate-200"
-                }`}
-              >
-                {badge.icon}
-              </div>
-              <span className="text-[10px] font-bold text-center text-slate-600 dark:text-slate-400 leading-tight">
-                {badge.name}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* CLASSEMENT */}
-      <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-black text-lg text-slate-800 dark:text-white flex items-center gap-2">
-            <Trophy className="text-yellow-500 fill-yellow-500" size={18} />{" "}
-            Leaderboard
-          </h3>
-
-          {/* AJOUT : Switch Global / Mois */}
-          <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
-            <button
-              onClick={() => setTimeframe("all")}
-              className={`px-3 py-1 text-[10px] font-bold rounded-lg transition-all ${
-                timeframe === "all"
-                  ? "bg-white dark:bg-slate-700 shadow text-slate-900 dark:text-white"
-                  : "text-slate-400"
-              }`}
-            >
-              Global
-            </button>
-            <button
-              onClick={() => setTimeframe("month")}
-              className={`px-3 py-1 text-[10px] font-bold rounded-lg transition-all ${
-                timeframe === "month"
-                  ? "bg-white dark:bg-slate-700 shadow text-slate-900 dark:text-white"
-                  : "text-slate-400"
-              }`}
-            >
-              Ce mois
-            </button>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="relative z-10 max-w-md mx-auto space-y-8"
+      >
+        {/* HEADER */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-black text-slate-800 tracking-tight">
+              Mon Espace
+            </h1>
+            <p className="text-slate-500 font-medium text-sm mt-0.5">
+              Ravi de te revoir,{" "}
+              <span className="text-teal-600 font-bold">
+                {user?.displayName || "l'ami"}
+              </span>{" "}
+              !
+            </p>
+          </div>
+          <div className="w-12 h-12 bg-white rounded-2xl shadow-sm border border-slate-100 flex items-center justify-center text-slate-700">
+            <User size={24} strokeWidth={2} />
           </div>
         </div>
 
-        <div className="space-y-3">
-          {top10.map((u, i) => {
-            const isMe = uid === u.id;
-            let rankClass =
-              "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400";
-            if (i === 0)
-              rankClass =
-                "bg-yellow-100 text-yellow-700 ring-1 ring-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400 dark:ring-yellow-900";
-            if (i === 1)
-              rankClass =
-                "bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300";
-            if (i === 2)
-              rankClass =
-                "bg-orange-100 text-orange-800 ring-1 ring-orange-200 dark:bg-orange-900/30 dark:text-orange-400 dark:ring-orange-900";
+        {/* CARTE FIDÉLITÉ "BLACK CARD" STYLE */}
+        <div className="group relative w-full aspect-[1.586/1] rounded-[24px] transition-all duration-500 hover:scale-[1.02]">
+          {/* Card Body */}
+          <div className="absolute inset-0 bg-slate-900 rounded-[24px] overflow-hidden shadow-2xl shadow-slate-900/30 border border-slate-700">
+            {/* Animated Mesh Gradient */}
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_-20%,_#334155,_#0f172a)]" />
+            <div className="absolute top-0 right-0 w-full h-full bg-gradient-to-br from-white/5 to-transparent opacity-50" />
 
-            return (
-              <div
-                key={u.id}
-                className={`flex items-center justify-between p-2.5 rounded-2xl transition-all ${
-                  isMe
-                    ? "bg-teal-50 ring-1 ring-teal-200 dark:bg-teal-900/20 dark:ring-teal-800"
-                    : ""
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <div
-                    className={`w-8 h-8 flex items-center justify-center rounded-xl font-black text-sm ${rankClass}`}
-                  >
-                    {i + 1}
+            {/* Glossy Effect */}
+            <div className="absolute -inset-full top-0 block h-full w-1/2 -skew-x-12 bg-gradient-to-r from-transparent to-white opacity-10 group-hover:animate-shine" />
+
+            <div className="relative h-full flex flex-col justify-between p-6 z-10 text-white">
+              {/* Top Row */}
+              <div className="flex justify-between items-start">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-5 rounded bg-yellow-200/20 border border-yellow-200/40 backdrop-blur-md flex items-center justify-center">
+                    <div className="w-6 h-3 border border-yellow-200/30 rounded-[2px]" />
                   </div>
-                  <div
-                    className={`text-sm font-bold ${
-                      isMe
-                        ? "text-teal-900 dark:text-teal-400"
-                        : "text-slate-700 dark:text-slate-300"
-                    }`}
-                  >
-                    {u.name} {isMe && "(Moi)"}
-                  </div>
+                  <span className="text-[10px] font-bold tracking-[0.2em] text-slate-400 uppercase">
+                    Amicale Pass
+                  </span>
                 </div>
-                <div className="font-black text-slate-900 dark:text-white text-sm">
-                  {fmtPoints(u.points)}{" "}
-                  <span className="text-[10px] text-slate-400 font-bold uppercase">
-                    pts
+                <div className="bg-white/10 backdrop-blur-md px-3 py-1 rounded-full border border-white/10 flex items-center gap-1.5 shadow-lg">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="text-[10px] font-bold uppercase tracking-wide">
+                    Actif
                   </span>
                 </div>
               </div>
-            );
-          })}
-        </div>
-      </div>
 
-      {/* PARAMÈTRES */}
-      <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800">
-        <button
-          onClick={() => setShowPwd(!showPwd)}
-          className="w-full flex items-center justify-between text-sm font-bold text-slate-600 dark:text-slate-300 hover:text-teal-600 dark:hover:text-teal-400 transition-colors"
-        >
-          <span className="flex items-center gap-2">
-            <KeyRound size={18} /> Changer mot de passe
-          </span>
-          <span className="text-[10px] bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded text-slate-400">
-            {showPwd ? "Fermer" : "Modifier"}
-          </span>
-        </button>
-
-        {showPwd && (
-          <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 animate-in slide-in-from-top-2">
-            {msg ? (
-              <p className="text-emerald-600 dark:text-emerald-400 text-xs font-bold bg-emerald-50 dark:bg-emerald-900/20 p-3 rounded-xl text-center">
-                {msg}
-              </p>
-            ) : (
-              <div className="flex gap-2">
-                <input
-                  type="password"
-                  placeholder="Nouveau mot de passe"
-                  className="flex-1 p-3 text-sm bg-slate-50 dark:bg-slate-800 border-transparent focus:bg-white dark:focus:bg-slate-900 focus:border-teal-500 border rounded-xl outline-none transition-all font-bold dark:text-white placeholder:text-slate-400"
-                  value={newPwd}
-                  onChange={(e) => setNewPwd(e.target.value)}
-                />
-                <button
-                  onClick={changePassword}
-                  className="bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-xs font-bold px-4 rounded-xl active:scale-95 transition-transform"
-                >
-                  OK
-                </button>
+              {/* Middle Row (Points) */}
+              <div className="flex flex-col">
+                <span className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-1">
+                  Solde actuel
+                </span>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-5xl font-black tracking-tighter bg-clip-text text-transparent bg-gradient-to-b from-white to-slate-400 drop-shadow-sm">
+                    {fmtPoints(user?.points)}
+                  </span>
+                  <span className="text-lg font-bold text-teal-400">PTS</span>
+                </div>
               </div>
-            )}
+
+              {/* Bottom Row */}
+              <div className="flex justify-between items-end">
+                <div>
+                  <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">
+                    Titulaire
+                  </p>
+                  <p className="font-bold tracking-wide uppercase text-sm text-slate-200 truncate max-w-[150px]">
+                    {user?.displayName || "Étudiant"}
+                  </p>
+                </div>
+                <CreditCard
+                  className="text-slate-600 opacity-50"
+                  size={32}
+                  strokeWidth={1.5}
+                />
+              </div>
+            </div>
           </div>
-        )}
+        </div>
 
-        {/* AJOUT : Bouton de notifications */}
-        <NotificationButton />
-      </div>
+        {/* TABS NAVIGATION */}
+        <div className="bg-white p-1.5 rounded-2xl border border-slate-200/60 shadow-sm flex gap-1 relative z-20">
+          {[
+            { id: "stats", label: "Succès", icon: Medal },
+            { id: "leaderboard", label: "Classement", icon: Trophy },
+            { id: "settings", label: "Paramètres", icon: Settings },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-bold transition-all duration-300 ${
+                activeTab === tab.id
+                  ? "bg-slate-900 text-white shadow-md transform scale-[1.02]"
+                  : "text-slate-400 hover:bg-slate-50 hover:text-slate-600"
+              }`}
+            >
+              <tab.icon size={16} strokeWidth={2.5} />
+              {tab.label}
+            </button>
+          ))}
+        </div>
 
-      <button
-        onClick={logout}
-        className="w-full py-4 text-rose-500 font-bold bg-rose-50 dark:bg-rose-900/20 border border-rose-100 dark:border-rose-900/30 hover:bg-rose-100 dark:hover:bg-rose-900/30 rounded-2xl flex items-center justify-center gap-2 transition-colors active:scale-95"
-      >
-        <LogOut size={18} /> Se déconnecter
-      </button>
+        {/* CONTENT */}
+        <AnimatePresence mode="wait">
+          {/* --- TAB: STATS --- */}
+          {activeTab === "stats" && (
+            <motion.div
+              key="stats"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="grid grid-cols-2 gap-4"
+            >
+              {badges.map((badge, idx) => (
+                <div
+                  key={idx}
+                  className={`relative overflow-hidden p-4 rounded-2xl border transition-all duration-300 group ${
+                    badge.unlocked
+                      ? "bg-white border-purple-100 shadow-lg shadow-purple-100/50"
+                      : "bg-slate-100 border-slate-200 opacity-70 grayscale"
+                  }`}
+                >
+                  {badge.unlocked && (
+                    <div className="absolute top-0 right-0 p-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Sparkles className="text-yellow-400 w-4 h-4" />
+                    </div>
+                  )}
+                  <div className="flex flex-col items-center text-center gap-2">
+                    <div className="text-4xl drop-shadow-sm transform group-hover:scale-110 transition-transform duration-300">
+                      {badge.icon}
+                    </div>
+                    <div>
+                      <h4 className="font-black text-slate-800 text-sm">
+                        {badge.name}
+                      </h4>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mt-1">
+                        {badge.desc}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </motion.div>
+          )}
+
+          {/* --- TAB: LEADERBOARD --- */}
+          {activeTab === "leaderboard" && (
+            <motion.div
+              key="leaderboard"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden"
+            >
+              {/* Filters */}
+              <div className="p-4 border-b border-slate-50 flex justify-center bg-slate-50/50">
+                <div className="flex bg-white p-1 rounded-xl shadow-sm border border-slate-100">
+                  {["all", "month"].map((t) => (
+                    <button
+                      key={t}
+                      onClick={() => setTimeframe(t)}
+                      className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                        timeframe === t
+                          ? "bg-slate-900 text-white shadow"
+                          : "text-slate-400 hover:text-slate-600"
+                      }`}
+                    >
+                      {t === "all" ? "Global" : "Ce mois"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* List */}
+              <div className="divide-y divide-slate-50">
+                {top10.map((u, i) => {
+                  const isMe = uid === u.id;
+                  let rankStyle = "bg-slate-100 text-slate-500";
+                  let rowStyle = isMe ? "bg-teal-50/50" : "hover:bg-slate-50";
+
+                  if (i === 0)
+                    rankStyle =
+                      "bg-gradient-to-br from-yellow-300 to-yellow-500 text-white shadow-yellow-200";
+                  if (i === 1)
+                    rankStyle =
+                      "bg-gradient-to-br from-slate-300 to-slate-400 text-white shadow-slate-200";
+                  if (i === 2)
+                    rankStyle =
+                      "bg-gradient-to-br from-orange-300 to-orange-400 text-white shadow-orange-200";
+
+                  return (
+                    <div
+                      key={u.id}
+                      className={`flex items-center justify-between p-4 transition-colors ${rowStyle}`}
+                    >
+                      <div className="flex items-center gap-4">
+                        <div
+                          className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-xs shadow-sm ${rankStyle}`}
+                        >
+                          {i + 1}
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-500">
+                            {getInitials(u.name)}
+                          </div>
+                          <div className="flex flex-col">
+                            <span
+                              className={`text-sm font-bold ${
+                                isMe ? "text-teal-700" : "text-slate-700"
+                              }`}
+                            >
+                              {u.name}
+                            </span>
+                            {isMe && (
+                              <span className="text-[9px] font-bold text-teal-500 uppercase tracking-wider">
+                                C'est moi !
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-black text-slate-800 text-sm">
+                          {fmtPoints(u.points)}
+                        </div>
+                        <div className="text-[9px] font-bold text-slate-400 uppercase">
+                          pts
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </motion.div>
+          )}
+
+          {/* --- TAB: SETTINGS --- */}
+          {activeTab === "settings" && (
+            <motion.div
+              key="settings"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="space-y-6"
+            >
+              {/* Section Sécurité */}
+              <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2 bg-slate-100 rounded-xl text-slate-600">
+                    <ShieldCheck size={20} />
+                  </div>
+                  <h3 className="font-black text-slate-800 text-sm">
+                    Sécurité
+                  </h3>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="relative group">
+                    <KeyRound
+                      className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-teal-500 transition-colors"
+                      size={18}
+                    />
+                    <input
+                      type="password"
+                      placeholder="Nouveau mot de passe"
+                      className="w-full pl-11 pr-4 py-3 bg-slate-50 rounded-xl text-sm font-bold border border-transparent focus:bg-white focus:border-teal-500 outline-none transition-all placeholder:text-slate-400"
+                      value={newPwd}
+                      onChange={(e) => setNewPwd(e.target.value)}
+                    />
+                  </div>
+                  <Button
+                    onClick={changePasswordAction}
+                    className="w-full py-3 text-xs shadow-none border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                  >
+                    Mettre à jour
+                  </Button>
+
+                  {pwdMsg && (
+                    <div className="bg-emerald-50 text-emerald-600 p-3 rounded-xl text-xs font-bold text-center border border-emerald-100">
+                      {pwdMsg}
+                    </div>
+                  )}
+                  {pwdError && (
+                    <div className="bg-rose-50 text-rose-600 p-3 rounded-xl text-xs font-bold text-center border border-rose-100">
+                      {pwdError}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Section Préférences */}
+              <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2 bg-purple-50 rounded-xl text-purple-600">
+                    <BellRing size={20} />
+                  </div>
+                  <h3 className="font-black text-slate-800 text-sm">
+                    Notifications
+                  </h3>
+                </div>
+                <NotificationButton />
+              </div>
+
+              <button
+                onClick={logout}
+                className="w-full py-4 text-rose-500 font-bold bg-white border border-rose-100 hover:bg-rose-50 rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-95 shadow-sm group"
+              >
+                <LogOut
+                  size={18}
+                  className="group-hover:scale-110 transition-transform"
+                />
+                Se déconnecter
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
     </div>
   );
 }
