@@ -1,7 +1,7 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
-import { getMessaging, getToken } from "firebase/messaging"; // AJOUT
+import { getMessaging, getToken } from "firebase/messaging";
 
 export const firebaseConfig = {
   apiKey: "AIzaSyAsGOggoYSR51WNcz7_DyTVDH6n-RkSZKA",
@@ -16,14 +16,35 @@ export const firebaseConfig = {
 export const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 export const auth = getAuth(app);
 export const db = getFirestore(app);
-export const messaging = getMessaging(app); // AJOUT
 
-// AJOUT : Fonction pour demander la permission
+// --- CORRECTION CRASH IOS (Google App) ---
+// Certaines webviews (comme Google App sur iPhone) bloquent les Service Workers.
+// Si getMessaging() plante, on capture l'erreur pour ne pas faire crasher toute l'app.
+let msgInstance = null;
+try {
+  // On vérifie si window est défini (évite crash build) et on tente l'init
+  if (typeof window !== "undefined") {
+    msgInstance = getMessaging(app);
+  }
+} catch (e) {
+  console.warn(
+    "Notifications non supportées sur ce navigateur (Google App/Webview) :",
+    e
+  );
+  // On laisse msgInstance à null, l'app continuera de fonctionner sans notifs.
+}
+export const messaging = msgInstance;
+
+// Fonction sécurisée pour demander la permission
 export const requestNotificationPermission = async () => {
   try {
+    if (!messaging) {
+      console.warn("Messaging non disponible.");
+      return null;
+    }
+
     const permission = await Notification.requestPermission();
     if (permission === "granted") {
-      // Remplacez par votre clé VAPID générée dans la console Firebase (Paramètres du projet > Cloud Messaging)
       const token = await getToken(messaging, {
         vapidKey:
           "BJE6pMBFWT3VBao38Nrm5uGHirSLHuA36rqk6YzJtD-CetqWRC94YPqbx1hMcWJSZQw7LmjAntCEGBYh3IOHhPQ",

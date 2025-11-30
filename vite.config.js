@@ -30,7 +30,12 @@ export default defineConfig({
       },
     }),
   ],
+  // Optimisation pour éviter les écrans blancs sur iOS
+  esbuild: {
+    target: "es2015",
+  },
   build: {
-    chunkSizeWarningLimit: 1000,
+    target: "es2015",
+    chunkSizeWarningLimit: 1500, // Augmenté pour éviter l'alerte jaune
   },
 });

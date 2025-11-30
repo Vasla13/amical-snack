@@ -2,40 +2,32 @@
 @tailwind components;
 @tailwind utilities;
 
-html, body { 
-  height: 100%; 
-  @apply bg-slate-50 dark:bg-slate-950 transition-colors duration-300;
-  -webkit-font-smoothing: antialiased; 
-  /* Empêche le rebond élastique sur iOS qui peut être gênant dans une PWA */
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+}
+
+html {
+  height: 100%;
+  /* Empêche le scroll horizontal accidentel */
+  overflow-x: hidden;
+}
+
+body {
+  margin: 0;
+  width: 100%;
+  /* Fallback et support mobile */
+  min-height: 100vh;
+  min-height: 100dvh;
+  @apply bg-slate-50 text-slate-900 antialiased;
+  /* Désactive l'effet élastique sur iOS */
   overscroll-behavior-y: none;
 }
 
-body { 
-  margin: 0; 
-}
-
-/* Cache la scrollbar tout en permettant le scroll */
+/* Utilitaires pour masquer la scrollbar tout en gardant le scroll */
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
-}
-
-@layer utilities {
-  /* Meilleure accessibilité clavier */
-  .focus-visible-ring {
-    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900;
-  }
-  
-  /* Texte plus lisible sur fond clair */
-  .text-subtle {
-    @apply text-slate-600 dark:text-slate-400; 
-  }
-}
-
-/* Augmente la zone de touche pour les boutons sur mobile */
-button {
-  touch-action: manipulation;
 }

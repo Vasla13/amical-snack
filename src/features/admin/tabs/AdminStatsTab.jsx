@@ -1,21 +1,27 @@
 import React, { useMemo } from "react";
 import { formatPrice } from "../../../lib/format.js";
-import { TrendingUp, Award, DollarSign, ShoppingCart } from "lucide-react";
+import {
+  TrendingUp,
+  Award,
+  DollarSign,
+  ShoppingCart,
+  Calendar,
+} from "lucide-react";
 
 export default function AdminStatsTab({ orders }) {
   const stats = useMemo(() => {
-    // On ne compte que les commandes payées ou servies
+    // Commandes valides uniquement
     const validOrders = orders.filter(
       (o) => o.status === "paid" || o.status === "served"
     );
 
-    // 1. Chiffre d'affaires total
+    // 1. Chiffre d'affaires
     const totalRevenue = validOrders.reduce(
       (sum, o) => sum + (o.total_cents || 0),
       0
     );
 
-    // 2. Produit le plus vendu
+    // 2. Best Seller
     const productCounts = {};
     validOrders.forEach((o) => {
       o.items?.forEach((item) => {
@@ -24,7 +30,6 @@ export default function AdminStatsTab({ orders }) {
       });
     });
 
-    // Conversion en tableau trié
     const sortedProducts = Object.entries(productCounts).sort(
       (a, b) => b[1] - a[1]
     );
@@ -38,59 +43,96 @@ export default function AdminStatsTab({ orders }) {
     return { totalRevenue, bestSeller, averageCart, count: validOrders.length };
   }, [orders]);
 
+  const StatCard = ({ icon: Icon, label, value, colorClass, sub }) => (
+    <div className="bg-white p-5 rounded-[1.2rem] shadow-sm border border-slate-100 flex flex-col justify-between h-32 relative overflow-hidden">
+      <div
+        className={`absolute -right-4 -top-4 w-20 h-20 rounded-full opacity-10 ${colorClass.replace(
+          "text",
+          "bg"
+        )}`}
+      />
+
+      <div className="flex items-center gap-2 mb-1">
+        <div
+          className={`p-2 rounded-lg bg-opacity-10 ${colorClass.replace(
+            "text",
+            "bg"
+          )} ${colorClass}`}
+        >
+          <Icon size={18} />
+        </div>
+        <span className="text-xs font-bold text-slate-400 uppercase tracking-wide">
+          {label}
+        </span>
+      </div>
+
+      <div>
+        <div className="text-2xl font-black text-slate-800 tracking-tight">
+          {value}
+        </div>
+        {sub && (
+          <div className="text-[10px] font-bold text-slate-400 mt-1">{sub}</div>
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      {/* Cards Grid */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-between h-28">
-          <div className="text-gray-400 text-xs font-bold uppercase mb-1 flex items-center gap-1">
-            <DollarSign size={14} /> Revenus
+      {/* GLOBAL REVENUE */}
+      <div className="bg-slate-900 p-6 rounded-[1.5rem] text-white shadow-xl relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-40 h-40 bg-teal-500 rounded-full blur-[60px] opacity-20 -mr-10 -mt-10" />
+        <div className="relative z-10">
+          <div className="flex items-center gap-2 mb-3 opacity-80">
+            <DollarSign size={18} />
+            <span className="text-xs font-bold uppercase tracking-widest">
+              Revenus Totaux
+            </span>
           </div>
-          <div className="text-2xl font-black text-emerald-600">
+          <div className="text-4xl font-black tracking-tight mb-1">
             {formatPrice(stats.totalRevenue)}
           </div>
-        </div>
-
-        <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-between h-28">
-          <div className="text-gray-400 text-xs font-bold uppercase mb-1 flex items-center gap-1">
-            <TrendingUp size={14} /> Commandes
-          </div>
-          <div className="text-2xl font-black text-slate-800">
-            {stats.count}
+          <div className="text-sm font-medium text-slate-400">
+            Sur {stats.count} commandes
           </div>
         </div>
       </div>
 
-      {/* Best Seller Card */}
-      <div className="bg-gradient-to-br from-indigo-600 to-purple-700 p-5 rounded-3xl text-white shadow-lg shadow-indigo-500/20 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -mr-10 -mt-10"></div>
-        <div className="relative z-10">
-          <div className="flex items-center gap-2 mb-2 opacity-80 font-bold text-xs uppercase tracking-widest">
-            <Award size={16} /> Best Seller
+      <div className="grid grid-cols-2 gap-3">
+        <StatCard
+          icon={TrendingUp}
+          label="Commandes"
+          value={stats.count}
+          colorClass="text-blue-600"
+        />
+        <StatCard
+          icon={ShoppingCart}
+          label="Panier Moyen"
+          value={formatPrice(stats.averageCart)}
+          colorClass="text-orange-500"
+        />
+      </div>
+
+      {/* BEST SELLER */}
+      <div className="bg-white p-5 rounded-[1.5rem] border border-slate-100 shadow-sm flex items-center justify-between">
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <Award className="text-yellow-500" size={18} />
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+              Top Produit
+            </span>
           </div>
-          <div className="text-3xl font-black mb-1 truncate">
+          <div className="text-lg font-black text-slate-900 leading-tight">
             {stats.bestSeller ? stats.bestSeller[0] : "—"}
           </div>
-          <div className="text-sm font-medium opacity-80">
-            Vendu{" "}
-            <span className="font-bold bg-white/20 px-2 py-0.5 rounded-md">
-              {stats.bestSeller ? stats.bestSeller[1] : 0}
-            </span>{" "}
-            fois
-          </div>
         </div>
-      </div>
-
-      {/* Average Cart */}
-      <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center">
-            <ShoppingCart size={20} />
+        <div className="bg-slate-100 px-4 py-2 rounded-xl text-center min-w-[70px]">
+          <div className="text-xl font-black text-slate-900 leading-none">
+            {stats.bestSeller ? stats.bestSeller[1] : 0}
           </div>
-          <div className="text-sm font-bold text-slate-500">Panier moyen</div>
-        </div>
-        <div className="text-xl font-black text-slate-800">
-          {formatPrice(stats.averageCart)}
+          <div className="text-[9px] font-bold text-slate-400 uppercase mt-1">
+            Ventes
+          </div>
         </div>
       </div>
     </div>
