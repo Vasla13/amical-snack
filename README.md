@@ -1,49 +1,94 @@
-# AMICALE R&T – Snack & Fidélité
+# AMICALE R&T - Snack & Fidelite
 
-Application React/Vite pour gérer les snacks de l’amicale : catalogue, panier/Pass, système de points avec “case opening”, et back-office admin. Le projet repose sur Firebase (Auth + Firestore) et Tailwind.
+Application web React/Vite pour le snack de l'Amicale R&T : connexion par lien magique ou mot de passe, catalogue et panier, generation de Pass/QR, programme de points (boutique + roulette), et back-office admin (scan, stock, statistiques). L'app est fournie en PWA pour un usage mobile.
 
-## Fonctionnalités principales
-- Authentification par email (Firebase Auth) et gestion du profil.
-- Catalogue et panier, passage en caisse (points gagnés en fonction du montant).
-- Pass / commandes avec QR code (générés côté client).
-- Fidélité : boutique de récompenses + “Case Opening” (roulette animée) débitant les points via transactions Firestore.
-- Admin : suivi des commandes, historique, gestion du stock (toggle disponibilité), seed produits.
+## Fonctionnalites
+- Auth Firebase : lien magique + mode mot de passe, creation du mot de passe apres login (/setup), reset password, roles, admin defini via `constants.js`.
+- Catalogue & panier : produits Firestore, ajout/retrait, disponibilite temps reel, validation -> creation d'ordre avec token QR.
+- Pass & paiements simules : affichage des commandes, paiement "solde PayPal" simule ou cash, debit de points, QR a scanner cote admin.
+- Fidelite : solde de points, boutique de recompenses, roulette animee (case opening) avec debit via transactions Firestore.
+- Profil : changement de mot de passe, notifications push (FCM) si dispo, leaderboard mensuel/global.
+- Admin : scan QR pour valider les commandes, changement de statut, historique, stats, gestion du stock (toggle disponibilite), seed produits par defaut, reset complet du stock.
+- PWA : manifest + service worker autoUpdate (vite-plugin-pwa), cible mobile iOS/Android.
 
-## Démarrage rapide
-1) Prérequis : Node.js 18+ et npm.
-2) Installer les dépendances : `npm install`
-3) Lancer en dev : `npm run dev` (http://localhost:5173 par défaut)
-4) Lancer un lint : `npm run lint`
-5) Build production : `npm run build` (puis `npm run preview` pour tester le build)
+## Stack technique
+- React 19, React Router 7, Vite 6.
+- Firebase v12 (Auth, Firestore, Messaging optionnel).
+- TailwindCSS, framer-motion, lucide-react.
+- Vite PWA plugin.
 
-## Configuration Firebase
-Le projet charge la config depuis `src/config/firebase.js` (valeurs déjà présentes pour l’environnement déployé). Pour pointer vers un autre projet Firebase, remplace les champs `firebaseConfig` ou injecte tes propres variables et importe-les ici.
+## Structure rapide (src)
+- `App.jsx` : routes, toasts/modales, finalisation lien magique, creation mot de passe, protections `/login`, `/setup`, `/admin`.
+- `context/` : `AuthContext` (session + profil Firestore + creation auto du doc user), `CartContext` (panier, creation d'ordre).
+- `features/` :
+  - `auth/` : ecran de login (onglets lien magique / mot de passe).
+  - `catalog/`, `cart/`, `order/` (Pass, paiement, QR), `loyalty/` (boutique + roulette), `profile/` (points, leaderboard, notifications, change password), `layout/` (shell + nav), `admin/` (dashboard, onglets commandes/historique/stock/stats, scanner QR).
+- `data/seedProducts.js` : produits par defaut pour le seed admin.
+- `lib/` : helpers device/format/token.
+- `ui/` : Button, Modal, NavBtn, Toast, Skeleton.
+- `config/` : Firebase, constantes (email admin, regex UHA).
 
-## Structure rapide
-- `src/App.jsx` : routing, modales (confirm/toast), récupération des produits, protection des routes.
-- `src/features/` :
-  - `catalog`, `cart`, `order/PassScreen`, `profile` : parcours utilisateur.
-  - `loyalty/` : `LoyaltyScreen`, `PointsShop`, `RouletteGame`.
-  - `admin/` : `AdminDashboard` + onglets commandes/historique/stock.
-- `src/context/AuthContext.jsx` : session utilisateur et données associées.
-- `src/lib/token.js` : génération de tokens pour QR.
-- `src/config/firebase.js` : initialisation Firebase.
+## Modele de donnees Firestore (voir `firestore.rules`)
+- `users/{uid}` : email, displayName, role (`admin`/`user`), points, balance_cents, setup_complete (true apres creation du mot de passe), points_history, created_at. Un user ne peut pas modifier points/role/balance; admin full access.
+- `products/{id}` : nom, prix (cents), is_available. Lecture publique, ecriture admin.
+- `orders/{id}` : user_id, items, total_cents, status (`created`/`paid`/`cash`), qr_token, timestamps, payment_method, points_earned. Lecture owner/admin, creation owner, update admin.
 
-## Scripts npm
-- `npm run dev` : serveur de développement Vite.
-- `npm run build` : build production.
-- `npm run preview` : prévisualisation du build.
-- `npm run lint` : eslint.
+## Parcours d'authentification
+1) `/login` : envoi d'un lien magique (`sendSignInLinkToEmail`). Si `auth/quota-exceeded` survient, attendre le reset quotidien ou augmenter le quota.
+2) Clic sur le lien => sign-in, redirection automatique vers `/setup` si `setup_complete` est false.
+3) `/setup` : creation du mot de passe via `linkWithCredential` (ajout du provider password). Si `requires-recent-login`, recliquer un lien magique recent.
+4) Admin : defini par `ADMIN_EMAIL` (`src/config/constants.js`), redirige vers `/admin`.
 
-## Notes d’implémentation
-- Les débits de points (boutique et case opening) sont réalisés via `runTransaction` Firestore pour éviter les doubles clics/conflits.
-- Le “Case Opening” construit une bande d’items avec un index gagnant fixe pour caler l’animation CSS (keyframe `roulette-spin`).
-- Les points sont normalisés (prise en charge des formats “29,50” ou numériques) avant écriture.
+## Prerequis
+- Node.js 18+ et npm.
+- Acces Firebase (projet `amical-rt` par defaut) + Firebase CLI pour deployer.
 
-## Déploiement
-- Build : `npm run build`
-- L’application est conçue pour Firebase Hosting (voir `firebase.json` et `.firebaserc`).
+## Installation & demarrage
+```bash
+npm install
+npm run dev   # http://localhost:5173
+```
+Lint / build / preview :
+```bash
+npm run lint
+npm run build
+npm run preview
+```
 
-## Support/maintenance
-- Stack : React 19, Vite 6, Tailwind, Firebase v12, react-router 7, lucide-react.
-- Vérifie les clés Firebase et les règles Firestore avant de mettre en prod.
+## Variables d'environnement
+Copier `.env` (deja present) ou creer `.env` :
+```
+VITE_FIREBASE_API_KEY=...
+VITE_FIREBASE_AUTH_DOMAIN=...
+VITE_FIREBASE_PROJECT_ID=...
+VITE_FIREBASE_STORAGE_BUCKET=...
+VITE_FIREBASE_MESSAGING_SENDER_ID=...
+VITE_FIREBASE_APP_ID=...
+VITE_FIREBASE_MEASUREMENT_ID=...
+VITE_RECAPTCHA_SITE_KEY=...    # si besoin recaptcha
+VITE_FIREBASE_VAPID_KEY=...    # pour FCM web push
+```
+L'app charge actuellement la config dans `src/config/firebase.js`. Les cles Firebase web sont publiques; la securite repose sur les regles Firestore et les quotas.
+
+## Commandes Firebase utiles
+- Deploiement Hosting : `npm run build` puis `firebase deploy --only hosting` (voir `firebase.json` et `.firebaserc`).
+- Regles Firestore : `firebase deploy --only firestore:rules`.
+- Emulateurs (optionnel) : `firebase emulators:start` si config ajoutee.
+
+## Notes PWA & mobile
+- Service worker autoUpdate, manifest defini dans `vite.config.js`.
+- Target ES2015 pour eviter les ecrans blancs sur certaines webviews iOS.
+- Icones depuis `public/logo.png` (192/512).
+
+## Astuces debug / limites
+- `auth/quota-exceeded` a l'envoi du lien magique : quota Firebase depasse -> attendre ou augmenter le plan/quota; utiliser l'onglet "Mot de passe" si le compte en a un, ou creer un user manuel dans la console.
+- `auth/requires-recent-login` a la creation du mot de passe : se reconnecter via lien magique puis refaire `/setup`.
+- Seed produits : bouton reset dans l'onglet Stock (admin) supprime les produits et reinjecte `SEED_PRODUCTS`.
+- Notifications : FCM peut etre indisponible sur certaines webviews; le code degrade silencieusement.
+
+## Securite
+- Regles Firestore : un user ne peut pas modifier ses points/role/solde; seules les creations d'ordres self-service sont autorisees.
+- Les commandes ne sont modifiables que par l'admin.
+- Les tokens QR sont generes cote client (`lib/token.js`) et consommes cote admin (TTL gere dans `useAdminOrders`).
+
+Bonne contribution !
