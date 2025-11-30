@@ -4,13 +4,13 @@ import { getAuth } from "firebase/auth";
 import { getMessaging, getToken } from "firebase/messaging";
 
 export const firebaseConfig = {
-  apiKey: "AIzaSyAsGOggoYSR51WNcz7_DyTVDH6n-RkSZKA",
-  authDomain: "amical-rt.firebaseapp.com",
-  projectId: "amical-rt",
-  storageBucket: "amical-rt.firebasestorage.app",
-  messagingSenderId: "556333156656",
-  appId: "1:556333156656:web:ba398c100f65ba34b760f5",
-  measurementId: "G-YGEYFCRHPY",
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
 export const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
