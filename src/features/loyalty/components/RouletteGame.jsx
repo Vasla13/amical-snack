@@ -56,8 +56,6 @@ function prefersReducedMotion() {
   );
 }
 
-// Affiche un prix si tu as un champ price (number) ou priceText (string)
-// (tu peux adapter à ton modèle produit)
 function formatPrice(item) {
   if (!item) return null;
   if (typeof item.priceText === "string" && item.priceText.trim())
@@ -338,49 +336,47 @@ export default function RouletteGame({
   return (
     <div className="mb-10 select-none">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4 px-1">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center border border-indigo-200 shadow-sm">
-            <Dices size={20} strokeWidth={2.5} />
-          </div>
-          <div>
-            <h2 className="font-bold text-gray-900 flex items-center gap-2">
-              <span>La Roulette des Récompenses</span>
-              <Sparkles className="w-4 h-4 text-yellow-400" />
-            </h2>
-            <p className="text-xs text-gray-500">
-              Dépense {COST} points pour tenter de gagner un cadeau ✨
-            </p>
-          </div>
-        </div>
+      <div className="flex items-center justify-between mb-4 px-2">
+        <h2 className="font-black text-xl text-slate-800 dark:text-white flex items-center gap-2">
+          <Dices className="text-purple-600" size={24} strokeWidth={2.5} />
+          <span className="bg-clip-text text-transparent bg-gradient-to-r from-purple-600 to-indigo-600">
+            La Roulette
+          </span>
+        </h2>
 
-        <div className="text-right text-xs text-gray-500">
-          <div>Coût par tirage : {COST} pts</div>
-          <div>Probabilités pondérées 🎯</div>
+        <div className="text-right">
+          <span className="text-xs font-bold text-slate-500 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-full shadow-sm">
+            Coût : {COST} pts
+          </span>
         </div>
       </div>
 
       {/* Zone roulette */}
-      <div className="relative bg-gradient-to-br from-indigo-900 via-indigo-950 to-slate-950 rounded-3xl shadow-2xl border border-indigo-700/40 p-4 sm:p-5">
-        <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500/20 via-fuchsia-500/10 to-cyan-400/20 rounded-3xl blur-xl -z-10" />
+      <div className="relative bg-slate-900 rounded-[2rem] p-1 shadow-xl shadow-slate-900/20 overflow-hidden border border-slate-800">
+        {/* Background Effects */}
+        <div className="absolute top-0 right-0 w-64 h-64 bg-purple-500 rounded-full mix-blend-overlay filter blur-3xl opacity-20 -mr-16 -mt-16 pointer-events-none"></div>
+        <div className="absolute bottom-0 left-0 w-64 h-64 bg-indigo-500 rounded-full mix-blend-overlay filter blur-3xl opacity-20 -ml-16 -mb-16 pointer-events-none"></div>
 
-        <div className="relative bg-slate-950/70 rounded-2xl border border-indigo-700/60 px-4 py-5 overflow-hidden">
+        <div className="relative z-10 px-4 py-6">
           {/* Masques */}
-          <div className="pointer-events-none absolute inset-y-0 left-0 w-16 bg-gradient-to-r from-slate-950 via-slate-950/60 to-transparent z-20" />
-          <div className="pointer-events-none absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-slate-950 via-slate-950/60 to-transparent z-20" />
+          <div className="pointer-events-none absolute inset-y-0 left-0 w-16 bg-gradient-to-r from-slate-900 to-transparent z-20" />
+          <div className="pointer-events-none absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-slate-900 to-transparent z-20" />
 
           {/* Marqueur central */}
-          <div className="pointer-events-none absolute inset-y-0 left-1/2 w-0.5 bg-gradient-to-b from-yellow-400 via-yellow-300 to-transparent z-30 opacity-80" />
-          <div className="pointer-events-none absolute -top-1 left-1/2 -translate-x-1/2 z-30">
-            <div className="w-0 h-0 border-l-6 border-r-6 border-b-[10px] border-l-transparent border-r-transparent border-b-yellow-300 drop-shadow-[0_0_6px_rgba(250,204,21,0.8)]" />
+          <div className="pointer-events-none absolute inset-y-0 left-1/2 w-0.5 bg-gradient-to-b from-yellow-400 via-yellow-300 to-transparent z-30 opacity-50" />
+          <div className="pointer-events-none absolute top-3 left-1/2 -translate-x-1/2 z-30">
+            <div className="w-0 h-0 border-l-8 border-r-8 border-t-[12px] border-l-transparent border-r-transparent border-t-yellow-400 drop-shadow-lg" />
           </div>
 
           {/* Bande */}
           <div ref={containerRef} className="relative overflow-hidden w-full">
             <div
               ref={stripRef}
-              className="flex items-center will-change-transform"
-              style={{ gap: `${GAP}px`, transform: "translate3d(0px,0px,0px)" }}
+              className="flex items-center will-change-transform py-4"
+              style={{
+                gap: `${GAP}px`,
+                transform: "translate3d(0px,0px,0px)",
+              }}
             >
               {strip.map((item, index) => {
                 if (!item) return null;
@@ -390,22 +386,19 @@ export default function RouletteGame({
                   <div
                     key={`${item.id}-${index}`}
                     className={[
-                      "flex-shrink-0 rounded-2xl border flex flex-col items-center justify-center px-2 transition-[transform,box-shadow] duration-300",
+                      "flex-shrink-0 rounded-2xl flex flex-col items-center justify-center px-2 transition-all duration-300",
                       isWinnerSpot
-                        ? "border-yellow-400/80 bg-gradient-to-b from-yellow-500/20 via-slate-900/80 to-slate-950 shadow-[0_0_25px_rgba(250,204,21,0.45)] scale-[1.02]"
-                        : "border-slate-700/70 bg-slate-900/80",
+                        ? "border-2 border-yellow-400/50 bg-gradient-to-b from-yellow-500/10 to-slate-800 shadow-[0_0_20px_rgba(250,204,21,0.2)] scale-105"
+                        : "border border-white/5 bg-white/5",
                     ].join(" ")}
                     style={{ width: ITEM_WIDTH, height: ITEM_HEIGHT }}
                   >
-                    <div className="relative mb-2">
-                      {isWinnerSpot && (
-                        <div className="absolute -inset-2 bg-yellow-400/20 blur-md rounded-full" />
-                      )}
+                    <div className="relative mb-3">
                       {item.image ? (
                         <img
                           src={item.image}
                           alt={item.name}
-                          className="relative z-10 w-16 h-16 object-contain drop-shadow-[0_8px_20px_rgba(15,23,42,0.9)]"
+                          className="relative z-10 w-16 h-16 object-contain drop-shadow-[0_4px_12px_rgba(0,0,0,0.5)]"
                         />
                       ) : (
                         <div className="relative z-10 w-16 h-16 rounded-xl bg-slate-800/60 border border-slate-700 flex items-center justify-center text-slate-200 text-xs">
@@ -415,8 +408,8 @@ export default function RouletteGame({
                     </div>
 
                     <p
-                      className={`text-[11px] font-semibold text-center leading-tight ${
-                        isWinnerSpot ? "text-yellow-50" : "text-slate-100"
+                      className={`text-[10px] font-bold text-center leading-tight line-clamp-2 ${
+                        isWinnerSpot ? "text-yellow-100" : "text-slate-300"
                       }`}
                     >
                       {item.name}
@@ -428,34 +421,35 @@ export default function RouletteGame({
           </div>
         </div>
 
-        {/* Bouton (sans overlay) */}
-        <div className="mt-4 flex justify-center">
+        {/* Bouton Action */}
+        <div className="p-5 pt-0 flex justify-center relative z-10">
           <Button
             onClick={handleSpin}
             disabled={
               !canPlay || gameState === "spinning" || gameState === "saving"
             }
-            className={[
-              "px-6 rounded-full text-sm font-semibold shadow-lg transition",
+            className={`w-full max-w-xs shadow-xl transition-all ${
               !canPlay || gameState === "spinning" || gameState === "saving"
-                ? "bg-slate-700/70 text-slate-300 cursor-not-allowed"
-                : "bg-yellow-400 hover:bg-yellow-300 text-slate-900",
-            ].join(" ")}
+                ? "bg-slate-800 text-slate-500 border border-slate-700"
+                : "bg-purple-600 hover:bg-purple-500 text-white shadow-purple-500/30 border border-purple-500/50"
+            }`}
           >
             {gameState === "saving" ? (
               <span className="flex items-center gap-2">
-                <Loader2 className="animate-spin" /> ENREGISTREMENT...
+                <Loader2 className="animate-spin" size={18} /> Enregistrement...
               </span>
             ) : gameState === "spinning" ? (
               <span className="flex items-center gap-2">
-                <Loader2 className="animate-spin" /> SUSPENSE...
+                <Loader2 className="animate-spin" size={18} /> Bonne chance...
               </span>
             ) : gameState === "won" ? (
               <span className="flex items-center gap-2 text-yellow-300">
-                <Trophy /> C'EST GAGNÉ !
+                <Trophy size={18} /> C'EST GAGNÉ !
               </span>
             ) : (
-              `LANCER (${COST} PTS)`
+              <span className="flex items-center gap-2">
+                <Sparkles size={18} /> LANCER ({COST} PTS)
+              </span>
             )}
           </Button>
         </div>
