@@ -2,7 +2,9 @@ import { initializeApp, getApps, getApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import { getMessaging, getToken } from "firebase/messaging";
+import { initializeAppCheck, ReCaptchaV3Provider } from "firebase/app-check";
 
+// Configuration utilisant les variables d'environnement (.env)
 export const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -13,16 +15,35 @@ export const firebaseConfig = {
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
+// Initialisation de l'application Firebase (Singleton)
 export const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 
-// --- CORRECTION CRASH IOS (Google App) ---
-// Certaines webviews (comme Google App sur iPhone) bloquent les Service Workers.
-// Si getMessaging() plante, on capture l'erreur pour ne pas faire crasher toute l'app.
+// --- SÉCURITÉ : INITIALISATION APP CHECK ---
+if (typeof window !== "undefined") {
+  // Pour tester en local, vous pouvez décommenter la ligne suivante.
+  // Cela affichera un "Debug Token" dans la console du navigateur que vous pourrez ajouter dans la console Firebase.
+  // self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+
+  try {
+    initializeAppCheck(app, {
+      provider: new ReCaptchaV3Provider(
+        import.meta.env.VITE_RECAPTCHA_SITE_KEY
+      ),
+      isTokenAutoRefreshEnabled: true,
+    });
+    console.log("App Check (reCAPTCHA v3) initialisé.");
+  } catch (e) {
+    console.error("Erreur lors de l'initialisation d'App Check:", e);
+  }
+}
+
+// --- GESTION NOTIFICATIONS (CORRECTION CRASH IOS) ---
+// Certaines webviews (ex: Google App sur iOS) bloquent les Service Workers.
+// On tente l'initialisation dans un bloc try/catch pour éviter de faire planter toute l'app.
 let msgInstance = null;
 try {
-  // On vérifie si window est défini (évite crash build) et on tente l'init
   if (typeof window !== "undefined") {
     msgInstance = getMessaging(app);
   }
@@ -31,11 +52,11 @@ try {
     "Notifications non supportées sur ce navigateur (Google App/Webview) :",
     e
   );
-  // On laisse msgInstance à null, l'app continuera de fonctionner sans notifs.
+  // On laisse msgInstance à null, l'app continuera de fonctionner sans notifications.
 }
 export const messaging = msgInstance;
 
-// Fonction sécurisée pour demander la permission
+// Fonction pour demander la permission de notification
 export const requestNotificationPermission = async () => {
   try {
     if (!messaging) {
