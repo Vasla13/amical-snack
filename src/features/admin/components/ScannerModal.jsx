@@ -1,10 +1,9 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Camera, X, Flashlight } from "lucide-react";
 import QrScanner from "qr-scanner";
-// Import du worker nécessaire pour les performances (vite syntax)
-import qrWorkerUrl from "qr-scanner/qr-scanner-worker.min.js?url";
 
-QrScanner.WORKER_PATH = qrWorkerUrl;
+// NOTE: Les lignes d'import du worker ont été retirées car elles ne sont plus nécessaires
+// avec les versions récentes de qr-scanner et provoquaient un warning.
 
 export default function ScannerModal({ open, onClose, onScan }) {
   const videoRef = useRef(null);
@@ -54,8 +53,6 @@ export default function ScannerModal({ open, onClose, onScan }) {
 
   useEffect(() => {
     // Si la modale n'est pas ouverte, on ne fait rien.
-    // Le nettoyage (stopScanner) sera appelé automatiquement par la fonction de retour
-    // de l'effet précédent ou lors du démontage.
     if (!open) {
       return;
     }
