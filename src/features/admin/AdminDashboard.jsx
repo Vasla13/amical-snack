@@ -6,13 +6,15 @@ import {
   Package,
   AlertCircle,
   CheckCircle2,
-} from "lucide-react";
+  BarChart2,
+} from "lucide-react"; // AJOUT BarChart2
 import { collection, getDocs, deleteDoc, addDoc } from "firebase/firestore";
 import { SEED_PRODUCTS } from "../../data/seedProducts.js";
 import { useAdminOrders } from "./hooks/useAdminOrders.js";
 import AdminOrdersTab from "./tabs/AdminOrdersTab.jsx";
 import AdminHistoryTab from "./tabs/AdminHistoryTab.jsx";
 import AdminStockTab from "./tabs/AdminStockTab.jsx";
+import AdminStatsTab from "./tabs/AdminStatsTab.jsx"; // AJOUT import
 
 export default function AdminDashboard({ db, products, onLogout }) {
   const [adminTab, setAdminTab] = useState("orders");
@@ -32,28 +34,43 @@ export default function AdminDashboard({ db, products, onLogout }) {
           is_available: true,
         });
       }
-      alert("Stock r\u00e9initialis\u00e9 !");
+      alert("Stock réinitialisé !");
     } catch (e) {
       alert("Erreur seed: " + e.message);
     }
   };
 
+  const TabButton = ({ id, icon: Icon, label }) => (
+    <button
+      onClick={() => setAdminTab(id)}
+      className={`flex-1 px-3 py-3 rounded-xl font-bold text-xs sm:text-sm flex flex-col sm:flex-row items-center justify-center gap-2 border transition-all ${
+        adminTab === id
+          ? "bg-teal-700 text-white border-teal-700 shadow-md transform scale-105"
+          : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50"
+      }`}
+    >
+      <Icon size={18} /> {label}
+    </button>
+  );
+
   return (
     <div className="min-h-screen bg-gray-100 p-4 font-sans pb-20">
-      <div className="flex justify-between items-center mb-4 gap-3">
-        <h1 className="font-black text-2xl text-gray-800">ADMIN R&T</h1>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="font-black text-2xl text-gray-800 tracking-tight">
+          ADMIN DASHBOARD
+        </h1>
         <div className="flex items-center gap-2">
           <button
             onClick={seed}
-            className="bg-red-600 text-white px-3 py-2 rounded-xl text-xs font-bold shadow-md"
+            className="bg-red-100 text-red-600 px-3 py-2 rounded-xl text-xs font-bold hover:bg-red-200 transition"
           >
-            Reset stock
+            Reset
           </button>
           <button
             onClick={onLogout}
             className="bg-white border text-gray-800 px-3 py-2 rounded-xl text-xs font-bold shadow-sm flex items-center gap-2"
           >
-            <LogOut size={16} /> D\u00e9co
+            <LogOut size={16} /> Déco
           </button>
         </div>
       </div>
@@ -75,50 +92,29 @@ export default function AdminDashboard({ db, products, onLogout }) {
         </div>
       )}
 
-      <div className="flex gap-2 mb-6">
-        <button
-          onClick={() => setAdminTab("orders")}
-          className={`flex-1 px-3 py-2 rounded-xl font-bold text-sm flex justify-center gap-2 border ${
-            adminTab === "orders"
-              ? "bg-teal-700 text-white"
-              : "bg-white text-gray-700"
-          }`}
-        >
-          <Camera size={16} /> Commandes
-        </button>
-        <button
-          onClick={() => setAdminTab("history")}
-          className={`flex-1 px-3 py-2 rounded-xl font-bold text-sm flex justify-center gap-2 border ${
-            adminTab === "history"
-              ? "bg-teal-700 text-white"
-              : "bg-white text-gray-700"
-          }`}
-        >
-          <History size={16} /> Historique
-        </button>
-        <button
-          onClick={() => setAdminTab("stock")}
-          className={`flex-1 px-3 py-2 rounded-xl font-bold text-sm flex justify-center gap-2 border ${
-            adminTab === "stock"
-              ? "bg-teal-700 text-white"
-              : "bg-white text-gray-700"
-          }`}
-        >
-          <Package size={16} /> Stock
-        </button>
+      {/* Navigation Tabs */}
+      <div className="flex gap-2 mb-6 overflow-x-auto no-scrollbar pb-1">
+        <TabButton id="orders" icon={Camera} label="Scan" />
+        <TabButton id="history" icon={History} label="Historique" />
+        <TabButton id="stock" icon={Package} label="Stock" />
+        <TabButton id="stats" icon={BarChart2} label="Stats" /> {/* AJOUT */}
       </div>
 
-      {adminTab === "orders" && (
-        <AdminOrdersTab
-          db={db}
-          orders={orders}
-          loading={loading}
-          ttlMs={ORDER_TTL_MS}
-          setFeedback={setFeedback}
-        />
-      )}
-      {adminTab === "history" && <AdminHistoryTab orders={orders} />}
-      {adminTab === "stock" && <AdminStockTab db={db} products={products} />}
+      <div className="transition-all duration-300">
+        {adminTab === "orders" && (
+          <AdminOrdersTab
+            db={db}
+            orders={orders}
+            loading={loading}
+            ttlMs={ORDER_TTL_MS}
+            setFeedback={setFeedback}
+          />
+        )}
+        {adminTab === "history" && <AdminHistoryTab orders={orders} />}
+        {adminTab === "stock" && <AdminStockTab db={db} products={products} />}
+        {adminTab === "stats" && <AdminStatsTab orders={orders} />}{" "}
+        {/* AJOUT */}
+      </div>
     </div>
   );
 }

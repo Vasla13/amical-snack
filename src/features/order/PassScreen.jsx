@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
-import { useLocation } from "react-router-dom"; // Import nécessaire pour lire l'état de navigation
+import { useLocation } from "react-router-dom";
 import {
   Ticket,
   ShoppingBag,
@@ -9,59 +9,72 @@ import {
   Clock,
   QrCode,
   CheckCircle2,
+  RotateCcw, // AJOUT icône
 } from "lucide-react";
-import OrderFlow from "./OrderFlow.jsx"; //
-import { formatPrice } from "../../lib/format.js"; //
-import { useAuth } from "../../context/AuthContext.jsx"; //
+import OrderFlow from "./OrderFlow.jsx";
+import { formatPrice } from "../../lib/format.js";
+import { useAuth } from "../../context/AuthContext.jsx";
+import { useCart } from "../../context/CartContext.jsx"; // AJOUT import
 
 export default function PassScreen({ db, onPay, onRequestCash }) {
   const { userData: user } = useAuth();
-  const location = useLocation(); // Récupération des données passées par Cart
+  const { addToCart } = useCart(); // AJOUT hook
+  const location = useLocation();
   const [orders, setOrders] = useState([]);
   const [selectedOrder, setSelectedOrder] = useState(null);
-
-  // On stocke l'ID à ouvrir automatiquement s'il existe
   const [autoOpenId, setAutoOpenId] = useState(location.state?.openOrderId);
+
+  // AJOUT : Fonction de re-commande
+  const handleReorder = (orderItems) => {
+    let count = 0;
+    orderItems.forEach((item) => {
+      // On réajoute chaque item autant de fois qu'il était présent
+      // Note: addToCart incrémente de 1, donc on boucle.
+      // Idéalement, modifier addToCart pour accepter une quantité, mais ceci fonctionne avec le code actuel.
+      for (let i = 0; i < (item.qty || 1); i++) {
+        addToCart(item);
+        count++;
+      }
+    });
+    alert(`${count} articles ajoutés au panier !`);
+  };
 
   useEffect(() => {
     if (!user?.uid) return;
-
-    const q = query(collection(db, "orders"), where("user_id", "==", user.uid)); //
-
+    const q = query(collection(db, "orders"), where("user_id", "==", user.uid));
     const unsub = onSnapshot(
       q,
       (s) => {
         const loadedOrders = s.docs
           .map((d) => ({ id: d.id, ...d.data() }))
           .filter((o) =>
-            ["created", "scanned", "cash", "paid", "reward_pending"].includes(
-              o.status
-            )
-          )
+            [
+              "created",
+              "scanned",
+              "cash",
+              "paid",
+              "served",
+              "reward_pending",
+            ].includes(o.status)
+          ) // AJOUT 'served'
           .sort((a, b) => {
             const tA = a.created_at?.toMillis ? a.created_at.toMillis() : 0;
             const tB = b.created_at?.toMillis ? b.created_at.toMillis() : 0;
             return tB - tA;
           });
-
         setOrders(loadedOrders);
       },
-      (error) => {
-        console.error("Erreur temps réel PassScreen :", error);
-      }
+      (error) => console.error("Erreur PassScreen :", error)
     );
-
     return () => unsub();
   }, [user, db]);
 
-  // EFFET : Ouvrir automatiquement la commande dès qu'elle est chargée
   useEffect(() => {
     if (autoOpenId && orders.length > 0) {
       const target = orders.find((o) => o.id === autoOpenId);
       if (target) {
         setSelectedOrder(target);
-        setAutoOpenId(null); // On reset pour ne pas le rouvrir si on ferme
-        // Nettoyer l'historique pour éviter réouverture au refresh (optionnel)
+        setAutoOpenId(null);
         window.history.replaceState({}, "");
       }
     }
@@ -70,7 +83,6 @@ export default function PassScreen({ db, onPay, onRequestCash }) {
   if (selectedOrder) {
     const liveOrder =
       orders.find((o) => o.id === selectedOrder.id) || selectedOrder;
-
     return (
       <OrderFlow
         order={liveOrder}
@@ -94,7 +106,6 @@ export default function PassScreen({ db, onPay, onRequestCash }) {
         Mes Commandes
       </h1>
 
-      {/* SECTION CADEAUX */}
       {coupons.length > 0 && (
         <div className="mb-8">
           <h2 className="text-xs font-black text-purple-600 uppercase tracking-widest mb-3 flex items-center gap-2 pl-1">
@@ -132,10 +143,9 @@ export default function PassScreen({ db, onPay, onRequestCash }) {
         </div>
       )}
 
-      {/* SECTION COMMANDES */}
       <div>
         <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2 pl-1">
-          <ShoppingBag size={14} /> En cours
+          <ShoppingBag size={14} /> En cours & Historique
         </h2>
 
         {regularOrders.length === 0 ? (
@@ -150,56 +160,64 @@ export default function PassScreen({ db, onPay, onRequestCash }) {
         ) : (
           <div className="space-y-3">
             {regularOrders.map((order) => {
-              const isPaid = order.status === "paid";
+              const isPaid =
+                order.status === "paid" || order.status === "served";
               return (
-                <button
-                  key={order.id}
-                  onClick={() => setSelectedOrder(order)}
-                  className="w-full bg-white p-4 rounded-3xl border border-slate-100 shadow-[0_4px_20px_rgb(0,0,0,0.02)] flex items-center justify-between active:scale-95 transition-all group relative overflow-hidden"
-                >
-                  <div
-                    className={`absolute left-0 top-0 bottom-0 w-1.5 ${
-                      isPaid ? "bg-emerald-500" : "bg-teal-500"
-                    }`}
-                  />
-
-                  <div className="flex items-center gap-4 pl-3">
-                    <div className="text-left">
-                      <div className="font-black text-slate-800 text-xl mb-1">
-                        {formatPrice(order.total_cents || 0)}
-                      </div>
-                      <div className="text-xs text-slate-500 flex items-center gap-1.5 font-medium">
-                        <Clock size={12} />
-                        {order.items?.length} article(s)
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <span
-                      className={`text-[10px] font-black uppercase tracking-wider px-2 py-1 rounded-lg ${
-                        isPaid
-                          ? "bg-emerald-50 text-emerald-600"
-                          : "bg-teal-50 text-teal-600"
-                      }`}
-                    >
-                      {isPaid ? "Payé" : "En attente"}
-                    </span>
+                <div key={order.id} className="relative group">
+                  <button
+                    onClick={() => setSelectedOrder(order)}
+                    className="w-full bg-white p-4 rounded-3xl border border-slate-100 shadow-[0_4px_20px_rgb(0,0,0,0.02)] flex items-center justify-between active:scale-95 transition-all relative overflow-hidden pr-14" // pr-14 pour laisser place au bouton reorder
+                  >
                     <div
-                      className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
-                        isPaid
-                          ? "bg-emerald-100 text-emerald-600"
-                          : "bg-slate-900 text-white"
+                      className={`absolute left-0 top-0 bottom-0 w-1.5 ${
+                        isPaid ? "bg-emerald-500" : "bg-teal-500"
                       }`}
-                    >
-                      {isPaid ? (
-                        <CheckCircle2 size={20} />
-                      ) : (
-                        <QrCode size={20} />
-                      )}
+                    />
+                    <div className="flex items-center gap-4 pl-3">
+                      <div className="text-left">
+                        <div className="font-black text-slate-800 text-xl mb-1">
+                          {formatPrice(order.total_cents || 0)}
+                        </div>
+                        <div className="text-xs text-slate-500 flex items-center gap-1.5 font-medium">
+                          <Clock size={12} />
+                          {order.items?.length} article(s) •{" "}
+                          {new Date(
+                            order.created_at?.toMillis
+                              ? order.created_at.toMillis()
+                              : Date.now()
+                          ).toLocaleDateString()}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </button>
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
+                          isPaid
+                            ? "bg-emerald-100 text-emerald-600"
+                            : "bg-slate-900 text-white"
+                        }`}
+                      >
+                        {isPaid ? (
+                          <CheckCircle2 size={20} />
+                        ) : (
+                          <QrCode size={20} />
+                        )}
+                      </div>
+                    </div>
+                  </button>
+
+                  {/* BOUTON RE-COMMANDE (Position absolue par dessus) */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleReorder(order.items);
+                    }}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 z-10 p-2 bg-slate-100 text-slate-600 rounded-full hover:bg-teal-100 hover:text-teal-700 transition-colors shadow-sm border border-slate-200"
+                    title="Commander à nouveau"
+                  >
+                    <RotateCcw size={18} />
+                  </button>
+                </div>
               );
             })}
           </div>

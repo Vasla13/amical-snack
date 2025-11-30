@@ -1,11 +1,45 @@
 import React, { useMemo, useState, useEffect } from "react";
-import { Search, Plus, Heart } from "lucide-react";
+import { Search, Plus, Heart, Check } from "lucide-react"; // AJOUT Check
 import { formatPrice } from "../../lib/format.js";
 import { useCart } from "../../context/CartContext.jsx";
 import { useAuth } from "../../context/AuthContext.jsx";
 import Skeleton from "../../ui/Skeleton.jsx";
 import ProductModal from "./ProductModal.jsx";
 import { doc, updateDoc, arrayUnion, arrayRemove } from "firebase/firestore";
+
+// AJOUT : Composant Bouton Animé
+function AddButton({ onClick, available }) {
+  const [clicked, setClicked] = useState(false);
+
+  const handleClick = (e) => {
+    e.stopPropagation();
+    if (!available) return;
+    setClicked(true);
+    onClick();
+    setTimeout(() => setClicked(false), 500); // 500ms d'animation
+  };
+
+  return (
+    <div
+      onClick={handleClick}
+      className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 ${
+        available
+          ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900 cursor-pointer shadow-md"
+          : "bg-slate-200 dark:bg-slate-800 text-slate-400"
+      } ${
+        clicked
+          ? "scale-110 bg-teal-500 rotate-180 ring-4 ring-teal-200"
+          : "group-hover:scale-105"
+      }`}
+    >
+      {clicked ? (
+        <Check size={16} strokeWidth={4} className="text-white" />
+      ) : (
+        <Plus size={16} strokeWidth={3} />
+      )}
+    </div>
+  );
+}
 
 export default function Catalog({ products }) {
   const { cart, addToCart } = useCart();
@@ -15,7 +49,6 @@ export default function Catalog({ products }) {
   const [loading, setLoading] = useState(true);
   const [selectedProduct, setSelectedProduct] = useState(null);
 
-  // Simulation loading pour l'effet Skeleton
   useEffect(() => {
     if (products.length > 0) setTimeout(() => setLoading(false), 800);
   }, [products]);
@@ -34,18 +67,15 @@ export default function Catalog({ products }) {
     return (products || []).filter((p) => {
       const matchSearch = !q || (p.name || "").toLowerCase().includes(q);
       let matchCat = true;
-
       if (selectedCategory === "Favoris") {
         matchCat = favorites.includes(p.id);
       } else if (selectedCategory !== "Tout") {
         matchCat = p.category === selectedCategory;
       }
-
       return matchSearch && matchCat;
     });
   }, [products, search, selectedCategory, favorites]);
 
-  // Gestion Favoris Firebase
   const toggleFavorite = async (product) => {
     if (!user) return;
     const ref = doc(db, "users", user.uid);
@@ -61,9 +91,7 @@ export default function Catalog({ products }) {
 
   return (
     <div className="px-4 pb-4 min-h-full flex flex-col">
-      {/* HEADER FIXE */}
       <div className="sticky top-0 z-20 bg-slate-50/95 dark:bg-slate-950/95 backdrop-blur pt-2 pb-1 transition-colors">
-        {/* Recherche */}
         <div className="relative mb-4 shadow-sm group">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5 transition-colors group-focus-within:text-teal-500" />
           <input
@@ -74,7 +102,6 @@ export default function Catalog({ products }) {
           />
         </div>
 
-        {/* Catégories */}
         <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2">
           {categories.map((cat) => (
             <button
@@ -99,7 +126,6 @@ export default function Catalog({ products }) {
         </div>
       </div>
 
-      {/* GRILLE PRODUITS */}
       <div className="grid grid-cols-2 gap-4 mt-2 pb-24">
         {loading
           ? Array.from({ length: 6 }).map((_, i) => (
@@ -123,14 +149,13 @@ export default function Catalog({ products }) {
               return (
                 <div
                   key={p.id}
-                  onClick={() => available && setSelectedProduct(p)} // Ouvre la modale
+                  onClick={() => available && setSelectedProduct(p)}
                   className={`group relative bg-white dark:bg-slate-900 p-3 rounded-3xl shadow-[0_4px_20px_rgb(0,0,0,0.03)] dark:shadow-none border border-slate-100 dark:border-slate-800 flex flex-col h-full overflow-hidden transition-all duration-300 active:scale-95 cursor-pointer ${
                     qty
                       ? "ring-2 ring-teal-500 ring-offset-2 dark:ring-offset-slate-950"
                       : ""
                   } ${available ? "" : "opacity-60 grayscale"}`}
                 >
-                  {/* Badge Rupture */}
                   {!available && (
                     <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/40 dark:bg-black/40 backdrop-blur-[2px]">
                       <span className="bg-slate-900 text-white text-[10px] font-black px-3 py-1.5 rounded-full uppercase tracking-wider">
@@ -139,7 +164,6 @@ export default function Catalog({ products }) {
                     </div>
                   )}
 
-                  {/* Bouton Favoris Rapide (Coin haut gauche) */}
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -154,7 +178,6 @@ export default function Catalog({ products }) {
                     />
                   </button>
 
-                  {/* Image */}
                   <div className="aspect-square w-full bg-slate-50 dark:bg-slate-800/50 rounded-2xl mb-3 flex items-center justify-center p-3 relative overflow-hidden">
                     <div className="absolute w-full h-full bg-radial-gradient from-white dark:from-slate-700 to-transparent opacity-60" />
                     <img
@@ -170,7 +193,6 @@ export default function Catalog({ products }) {
                     )}
                   </div>
 
-                  {/* Infos */}
                   <div className="mt-auto">
                     <h3 className="font-bold text-sm text-slate-800 dark:text-slate-100 leading-tight line-clamp-2 mb-2 min-h-[2.5em]">
                       {p.name}
@@ -179,19 +201,11 @@ export default function Catalog({ products }) {
                       <span className="font-black text-lg text-slate-700 dark:text-slate-300">
                         {formatPrice(p.price_cents)}
                       </span>
-                      <div
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          available && addToCart(p);
-                        }}
-                        className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
-                          available
-                            ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900 group-hover:bg-teal-600 dark:group-hover:bg-teal-400"
-                            : "bg-slate-200 dark:bg-slate-800 text-slate-400"
-                        }`}
-                      >
-                        <Plus size={16} strokeWidth={3} />
-                      </div>
+                      {/* AJOUT : Utilisation du bouton animé */}
+                      <AddButton
+                        available={available}
+                        onClick={() => addToCart(p)}
+                      />
                     </div>
                   </div>
                 </div>
@@ -199,7 +213,6 @@ export default function Catalog({ products }) {
             })}
       </div>
 
-      {/* MODALE DÉTAIL */}
       <ProductModal
         product={selectedProduct}
         isOpen={!!selectedProduct}
@@ -213,7 +226,6 @@ export default function Catalog({ products }) {
         allProducts={products}
       />
 
-      {/* État vide */}
       {!loading && filtered.length === 0 && (
         <div className="flex-1 flex flex-col items-center justify-center py-12 text-slate-400">
           <Search size={32} className="mb-2 opacity-20" />

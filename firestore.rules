@@ -1,0 +1,59 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper : Vérifie si l'utilisateur est connecté
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Helper : Vérifie si l'utilisateur agit sur ses propres données
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Helper : Vérifie si l'utilisateur est admin (basé sur le champ 'role' du document user)
+    function isAdmin() {
+      return isAuthenticated() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // --- RÈGLES UTILISATEURS ---
+    match /users/{userId} {
+      // Lecture autorisée pour l'auth (nécessaire pour charger le profil) et le leaderboard
+      allow read: if isAuthenticated();
+      
+      // Création autorisée uniquement pour soi-même
+      allow create: if isOwner(userId);
+      
+      // Modification autorisée pour soi-même SAUF les champs sensibles (points, solde, rôle)
+      allow update: if isOwner(userId) 
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['points', 'role', 'balance_cents', 'points_history']);
+      
+      // Admin a tous les droits
+      allow write: if isAdmin();
+    }
+
+    // --- RÈGLES PRODUITS ---
+    match /products/{productId} {
+      // Lecture publique (catalogue)
+      allow read: if true;
+      // Écriture réservée à l'admin
+      allow write: if isAdmin();
+    }
+
+    // --- RÈGLES COMMANDES ---
+    match /orders/{orderId} {
+      // Lecture : Soi-même ou Admin
+      allow read: if isOwner(resource.data.user_id) || isAdmin();
+      
+      // Création : Autorisé pour soi-même, statut initial forcé à 'created'
+      allow create: if isOwner(request.resource.data.user_id)
+        && request.resource.data.status == 'created'
+        && request.resource.data.points_earned == null; 
+
+      // Modification : Interdite aux users (seul l'admin ou le système peut valider/payer)
+      allow update: if isAdmin();
+    }
+  }
+}

@@ -1,6 +1,7 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
+import { getMessaging, getToken } from "firebase/messaging"; // AJOUT
 
 export const firebaseConfig = {
   apiKey: "AIzaSyAsGOggoYSR51WNcz7_DyTVDH6n-RkSZKA",
@@ -15,3 +16,22 @@ export const firebaseConfig = {
 export const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+export const messaging = getMessaging(app); // AJOUT
+
+// AJOUT : Fonction pour demander la permission
+export const requestNotificationPermission = async () => {
+  try {
+    const permission = await Notification.requestPermission();
+    if (permission === "granted") {
+      // Remplacez par votre clé VAPID générée dans la console Firebase (Paramètres du projet > Cloud Messaging)
+      const token = await getToken(messaging, {
+        vapidKey: "VOTRE_CLE_VAPID_ICI",
+      });
+      console.log("Token FCM:", token);
+      return token;
+    }
+  } catch (error) {
+    console.error("Erreur permission notif:", error);
+  }
+  return null;
+};

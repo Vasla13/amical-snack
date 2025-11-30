@@ -6,17 +6,36 @@ html, body {
   height: 100%; 
   @apply bg-slate-50 dark:bg-slate-950 transition-colors duration-300;
   -webkit-font-smoothing: antialiased; 
+  /* Empêche le rebond élastique sur iOS qui peut être gênant dans une PWA */
+  overscroll-behavior-y: none;
 }
 
 body { 
   margin: 0; 
-  overscroll-behavior-y: none; 
 }
 
+/* Cache la scrollbar tout en permettant le scroll */
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+@layer utilities {
+  /* Meilleure accessibilité clavier */
+  .focus-visible-ring {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900;
+  }
+  
+  /* Texte plus lisible sur fond clair */
+  .text-subtle {
+    @apply text-slate-600 dark:text-slate-400; 
+  }
+}
+
+/* Augmente la zone de touche pour les boutons sur mobile */
+button {
+  touch-action: manipulation;
 }
