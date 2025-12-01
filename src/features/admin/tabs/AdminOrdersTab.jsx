@@ -29,9 +29,19 @@ export default function AdminOrdersTab({
     }).format(new Date(ms));
   };
 
+  // CORRECTION : Nettoyage du token au scan (garde seulement la fin après le dernier /)
+  const cleanToken = (input) => {
+    if (!input) return "";
+    const val = String(input).trim();
+    if (val.includes("/")) {
+      return val.split("/").pop().toUpperCase();
+    }
+    return val.toUpperCase();
+  };
+
   const handleValidate = async () => {
     setFeedback(null);
-    const token = scanInput.trim().toUpperCase();
+    const token = cleanToken(scanInput);
     if (!token) return;
 
     try {
@@ -93,6 +103,8 @@ export default function AdminOrdersTab({
         const uSnap = await getDoc(uRef);
         if (uSnap.exists()) {
           const cur = Number(uSnap.data().points || 0);
+          // CORRECTION Leaderboard : Incrémentation manuelle de l'historique ici aussi si nécessaire
+          // Note : Pour l'historique, voir App.jsx qui gère la simulation paypal
           await updateDoc(uRef, { points: cur + Number(o.total_cents) / 100 });
         }
       }
@@ -119,10 +131,9 @@ export default function AdminOrdersTab({
       <ScannerModal
         open={scannerOpen}
         onClose={() => setScannerOpen(false)}
-        onScan={(t) => t && setScanInput(String(t).toUpperCase())}
+        onScan={(t) => t && setScanInput(cleanToken(t))}
       />
 
-      {/* ZONE DE SCAN */}
       <div className="bg-white p-2 rounded-2xl shadow-lg shadow-slate-200 border border-slate-100 flex gap-2 sticky top-0 z-10">
         <button
           onClick={() => setScannerOpen(true)}
@@ -181,7 +192,6 @@ export default function AdminOrdersTab({
                     : ""
                 }`}
               >
-                {/* Bande latérale couleur */}
                 <div
                   className={`absolute left-0 top-0 bottom-0 w-1.5 ${
                     isReward

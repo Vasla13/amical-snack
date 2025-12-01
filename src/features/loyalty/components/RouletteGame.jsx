@@ -6,24 +6,19 @@ import {
   runTransaction,
 } from "firebase/firestore";
 import { Dices, Trophy, Loader2, Sparkles, ChevronDown } from "lucide-react";
-import confetti from "canvas-confetti"; // AJOUT : Effet confettis
+import confetti from "canvas-confetti";
 import Button from "../../../ui/Button.jsx";
 import { generateToken } from "../../../lib/token.js";
 
-// --- CONFIG ---
 const COST = 5;
-
 const ITEM_WIDTH = 120;
 const ITEM_HEIGHT = 140;
 const GAP = 12;
-
 const TOTAL_ITEMS = 80;
 const WINNER_INDEX = 60;
-
 const SPIN_SECONDS = 7;
 const EASING = "cubic-bezier(0.15, 0.85, 0.25, 1)";
 
-// --- UTILS ---
 function normalizePoints(points) {
   return typeof points === "number" && !Number.isNaN(points) ? points : 0;
 }
@@ -31,16 +26,13 @@ function normalizePoints(points) {
 function getRandomWeightedItem(items) {
   const clean = (items || []).filter((it) => it && it.id);
   if (clean.length === 0) return null;
-
   const weights = clean.map((it) =>
     typeof it.probability === "number" && it.probability > 0
       ? it.probability
       : 1
   );
-
   const total = weights.reduce((s, w) => s + w, 0);
   let r = Math.random() * total;
-
   for (let i = 0; i < clean.length; i++) {
     r -= weights[i];
     if (r <= 0) return clean[i];
@@ -82,12 +74,10 @@ export default function RouletteGame({
   onConfirm,
   onGoToPass,
 }) {
-  const [gameState, setGameState] = useState("idle"); // idle | spinning | saving | won
+  const [gameState, setGameState] = useState("idle");
   const [strip, setStrip] = useState([]);
-
   const containerRef = useRef(null);
   const stripRef = useRef(null);
-
   const winnerRef = useRef(null);
   const animationRef = useRef(null);
   const mountedRef = useRef(false);
@@ -129,7 +119,6 @@ export default function RouletteGame({
     };
   }, []);
 
-  // Bande démo au chargement
   useEffect(() => {
     if (availableProducts.length > 0 && strip.length === 0) {
       setStrip(
@@ -139,13 +128,11 @@ export default function RouletteGame({
       );
       resetPosition();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [availableProducts.length]);
 
   const fireConfetti = () => {
     const end = Date.now() + 1000;
     const colors = ["#fbbf24", "#818cf8", "#34d399"];
-
     (function frame() {
       if (!mountedRef.current) return;
       confetti({
@@ -162,7 +149,6 @@ export default function RouletteGame({
         origin: { x: 1 },
         colors: colors,
       });
-
       if (Date.now() < end) {
         requestAnimationFrame(frame);
       }
@@ -181,7 +167,6 @@ export default function RouletteGame({
     await runTransaction(db, async (tx) => {
       const snap = await tx.get(userRef);
       if (!snap.exists()) throw new Error("USER_NOT_FOUND");
-
       const currentPoints = normalizePoints(snap.data()?.points);
       if (currentPoints < COST) throw new Error("POINTS_LOW");
 
@@ -190,17 +175,16 @@ export default function RouletteGame({
         lastUpdated: serverTimestamp(),
       });
 
+      // CORRECTION : status 'reward_pending' et structure 'items' pour PassScreen
       tx.set(orderRef, {
-        userId: user.uid,
-        productId: item.id,
-        productName: item.name ?? null,
-        productImage: item.image ?? null,
-        productPrice: item.price ?? null,
-        productPriceText: item.priceText ?? null,
-        pointsUsed: COST,
-        token,
-        status: "won",
-        createdAt: serverTimestamp(),
+        user_id: user.uid,
+        items: [{ ...item, qty: 1, price_cents: 0 }], // Format standard
+        total_cents: 0,
+        status: "reward_pending", // Pour apparaître dans "Récompenses"
+        payment_method: "roulette",
+        qr_token: token,
+        created_at: serverTimestamp(),
+        source: "Roulette",
       });
     });
 
@@ -209,7 +193,6 @@ export default function RouletteGame({
 
   const showWinModal = (wonItem) => {
     const price = formatPrice(wonItem);
-
     onConfirm?.({
       title: "🎉 C'EST GAGNÉ !",
       text: (
@@ -230,7 +213,6 @@ export default function RouletteGame({
               )}
             </div>
           </div>
-
           <div className="text-center space-y-1">
             <p className="text-teal-600 text-xs font-black uppercase tracking-widest">
               Félicitations
@@ -355,13 +337,12 @@ export default function RouletteGame({
     if (!mountedRef.current) return;
 
     setGameState("won");
-    fireConfetti(); // 🎉 Lancement des confettis
+    fireConfetti();
     setTimeout(() => showWinModal(winnerItem), 800);
   };
 
   return (
     <div className="mb-10 select-none">
-      {/* Header */}
       <div className="flex items-center justify-between mb-4 px-2">
         <h2 className="font-black text-xl text-slate-800 dark:text-white flex items-center gap-2">
           <Dices className="text-purple-600" size={24} strokeWidth={2.5} />
@@ -369,26 +350,21 @@ export default function RouletteGame({
             Mystery Box
           </span>
         </h2>
-
         <div className="text-right">
-          <span className="text-xs font-bold text-slate-500 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-full shadow-sm">
+          <span className="text-xs font-bold text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-full shadow-sm">
             {COST} pts / tirage
           </span>
         </div>
       </div>
 
-      {/* Zone jeu */}
       <div className="relative bg-slate-900 rounded-[2.5rem] p-1.5 shadow-2xl shadow-slate-900/30 overflow-hidden border border-slate-800 ring-4 ring-slate-100 dark:ring-slate-800/50">
-        {/* Décors de fond */}
         <div className="absolute top-0 right-0 w-full h-full bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-indigo-500/20 via-transparent to-transparent pointer-events-none opacity-50"></div>
         <div className="absolute bottom-0 left-0 w-full h-full bg-[radial-gradient(ellipse_at_bottom_left,_var(--tw-gradient-stops))] from-purple-500/20 via-transparent to-transparent pointer-events-none opacity-50"></div>
 
         <div className="relative z-10 bg-slate-950/80 backdrop-blur-sm rounded-[2rem] border border-slate-800/50 px-0 py-8 overflow-hidden">
-          {/* Masques ombres */}
           <div className="pointer-events-none absolute inset-y-0 left-0 w-24 bg-gradient-to-r from-slate-950 to-transparent z-20" />
           <div className="pointer-events-none absolute inset-y-0 right-0 w-24 bg-gradient-to-l from-slate-950 to-transparent z-20" />
 
-          {/* MARQUEUR CENTRAL : Juste les flèches, sans ligne */}
           <div className="pointer-events-none absolute top-0 bottom-0 left-1/2 -translate-x-1/2 z-30 flex flex-col justify-between items-center py-2">
             <ChevronDown
               className="text-yellow-400 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]"
@@ -402,7 +378,6 @@ export default function RouletteGame({
             />
           </div>
 
-          {/* Bande de défilement */}
           <div ref={containerRef} className="relative w-full">
             <div
               ref={stripRef}
@@ -421,7 +396,7 @@ export default function RouletteGame({
                     key={`${item.id}-${index}`}
                     className={[
                       "flex-shrink-0 relative rounded-2xl flex flex-col items-center justify-center transition-all duration-500",
-                      "bg-slate-800 border border-slate-700", // Fond uni pour meilleure visibilité
+                      "bg-slate-800 border border-slate-700",
                       isWon
                         ? "scale-105 border-yellow-400 shadow-[0_0_30px_rgba(250,204,21,0.3)] z-10 bg-slate-700"
                         : "",
@@ -431,7 +406,6 @@ export default function RouletteGame({
                     {isWon && (
                       <div className="absolute inset-0 bg-yellow-400/10 rounded-2xl animate-pulse" />
                     )}
-
                     <div className="relative mb-3 z-10">
                       {item.image ? (
                         <img
@@ -445,7 +419,6 @@ export default function RouletteGame({
                         </div>
                       )}
                     </div>
-
                     <p
                       className={`relative z-10 text-[11px] font-bold text-center leading-tight line-clamp-2 px-2 ${
                         isWon ? "text-yellow-100" : "text-slate-300"
@@ -460,7 +433,6 @@ export default function RouletteGame({
           </div>
         </div>
 
-        {/* Bouton */}
         <div className="p-5 pt-2 flex justify-center relative z-20 -mt-4">
           <Button
             onClick={handleSpin}

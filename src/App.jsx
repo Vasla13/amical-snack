@@ -7,6 +7,7 @@ import {
   serverTimestamp,
   setDoc,
   getDoc,
+  increment, // IMPORTÉ
 } from "firebase/firestore";
 import {
   isSignInWithEmailLink,
@@ -21,7 +22,6 @@ import { auth, db } from "./config/firebase.js";
 import { useAuth } from "./context/AuthContext.jsx";
 import { ADMIN_EMAIL } from "./config/constants.js";
 
-// Pages
 import LoginScreen from "./features/auth/LoginScreen.jsx";
 import MainLayout from "./features/layout/MainLayout.jsx";
 import Catalog from "./features/catalog/Catalog.jsx";
@@ -31,7 +31,6 @@ import LoyaltyScreen from "./features/loyalty/LoyaltyScreen.jsx";
 import Profile from "./features/profile/Profile.jsx";
 import AdminDashboard from "./features/admin/AdminDashboard.jsx";
 
-// UI Components
 import Button from "./ui/Button.jsx";
 import Toast from "./ui/Toast.jsx";
 import Modal from "./ui/Modal.jsx";
@@ -48,7 +47,6 @@ export default function App() {
   const [emailForLink, setEmailForLink] = useState("");
   const [needsEmailConfirm, setNeedsEmailConfirm] = useState(false);
 
-  // Protection double exécution
   const loginAttempted = useRef(false);
 
   const [newPassword, setNewPassword] = useState("");
@@ -65,9 +63,7 @@ export default function App() {
   );
   const confirmAction = (opts) => setModal(opts);
 
-  // --- 1. GESTION DU LIEN MAGIQUE ---
   useEffect(() => {
-    // Cette fonction détecte les codes apiKey/oobCode dans l'URL
     if (isSignInWithEmailLink(auth, window.location.href)) {
       if (loginAttempted.current) return;
       loginAttempted.current = true;
@@ -88,7 +84,6 @@ export default function App() {
       await signInWithEmailLink(auth, email, window.location.href);
       window.localStorage.removeItem("emailForSignIn");
       notify("Connexion réussie !", "success");
-      // Important : On redirige vers l'accueil pour nettoyer l'URL
       navigate("/");
     } catch (error) {
       console.error(error);
@@ -100,7 +95,6 @@ export default function App() {
     }
   };
 
-  // --- 2. DONNÉES TEMPS RÉEL ---
   useEffect(() => {
     if (!user) return;
     const unsub = onSnapshot(collection(db, "products"), (s) =>
@@ -109,7 +103,6 @@ export default function App() {
     return () => unsub();
   }, [user]);
 
-  // --- 3. CRÉATION DU MOT DE PASSE (Setup) ---
   const handleCreatePassword = async () => {
     if (newPassword.length < 6) return notify("6 caractères min !", "error");
     setPwdLoading(true);
@@ -153,8 +146,10 @@ export default function App() {
   };
 
   const payOrder = async (method, order) => {
-    // ... (Identique à avant)
     const totalCents = Number(order.total_cents || 0);
+    const pointsEarned = totalCents / 100;
+    const currentMonthKey = new Date().toISOString().slice(0, 7);
+
     if (method === "paypal_balance") {
       const balance = Number(userDataRef.current?.balance_cents || 0);
       if (balance < totalCents) return notify("Solde insuffisant.", "error");
@@ -162,17 +157,21 @@ export default function App() {
         balance_cents: balance - totalCents,
       });
     }
+
     await updateDoc(doc(db, "orders", order.id), {
       status: "paid",
       paid_at: serverTimestamp(),
       payment_method: method,
       payment_simulated: true,
-      points_earned: totalCents / 100,
+      points_earned: pointsEarned,
     });
-    const prevPts = Number(userDataRef.current?.points || 0);
+
+    // CORRECTION : Mise à jour des points ET de l'historique pour le classement
     await updateDoc(doc(db, "users", user.uid), {
-      points: prevPts + totalCents / 100,
+      points: increment(pointsEarned),
+      [`points_history.${currentMonthKey}`]: increment(pointsEarned),
     });
+
     notify("Paiement validé !", "success");
   };
 
@@ -353,8 +352,6 @@ export default function App() {
           />
         </Route>
 
-        {/* --- CORRECTION POUR LE LIEN EMAIL "CASSÉ" --- */}
-        {/* Cette route attrape l'URL bizarre de Firebase et affiche un écran d'attente pendant que le useEffect fait le travail */}
         <Route
           path="/auth/action"
           element={

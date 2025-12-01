@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from "react";
-import { Search, Plus, Heart, Check } from "lucide-react"; // AJOUT Check
+import { Search, Plus, Heart, Check } from "lucide-react";
 import { formatPrice } from "../../lib/format.js";
 import { useCart } from "../../context/CartContext.jsx";
 import { useAuth } from "../../context/AuthContext.jsx";
@@ -7,7 +7,7 @@ import Skeleton from "../../ui/Skeleton.jsx";
 import ProductModal from "./ProductModal.jsx";
 import { doc, updateDoc, arrayUnion, arrayRemove } from "firebase/firestore";
 
-// AJOUT : Composant Bouton Animé
+// Composant Bouton Animé
 function AddButton({ onClick, available }) {
   const [clicked, setClicked] = useState(false);
 
@@ -16,7 +16,7 @@ function AddButton({ onClick, available }) {
     if (!available) return;
     setClicked(true);
     onClick();
-    setTimeout(() => setClicked(false), 500); // 500ms d'animation
+    setTimeout(() => setClicked(false), 500);
   };
 
   return (
@@ -91,7 +91,8 @@ export default function Catalog({ products }) {
 
   return (
     <div className="px-4 pb-4 min-h-full flex flex-col">
-      <div className="sticky top-0 z-20 bg-slate-50/95 dark:bg-slate-950/95 backdrop-blur pt-2 pb-1 transition-colors">
+      {/* CORRECTION : Z-Index augmenté à 50 pour passer au dessus des items */}
+      <div className="sticky top-0 z-50 bg-slate-50/95 dark:bg-slate-950/95 backdrop-blur pt-2 pb-1 transition-colors">
         <div className="relative mb-4 shadow-sm group">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5 transition-colors group-focus-within:text-teal-500" />
           <input
@@ -164,12 +165,13 @@ export default function Catalog({ products }) {
                     </div>
                   )}
 
+                  {/* Bouton favoris */}
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       toggleFavorite(p);
                     }}
-                    className="absolute top-3 left-3 z-20 p-1.5 bg-white/80 dark:bg-black/30 backdrop-blur rounded-full text-slate-400 hover:text-rose-500 transition-colors"
+                    className="absolute top-3 left-3 z-30 p-1.5 bg-white/80 dark:bg-black/30 backdrop-blur rounded-full text-slate-400 hover:text-rose-500 transition-colors"
                   >
                     <Heart
                       size={14}
@@ -201,7 +203,6 @@ export default function Catalog({ products }) {
                       <span className="font-black text-lg text-slate-700 dark:text-slate-300">
                         {formatPrice(p.price_cents)}
                       </span>
-                      {/* AJOUT : Utilisation du bouton animé */}
                       <AddButton
                         available={available}
                         onClick={() => addToCart(p)}
