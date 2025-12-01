@@ -107,11 +107,13 @@ export const SEED_PRODUCTS = [
     image: "/produits/granola.png",
   },
 
+  // ...
   // FORMULES
   {
     name: "Formule",
     price_cents: 120,
     category: "Formules",
-    image: "/produits/formule.png", 
+    image: "/produits/formule.png", // <--- C'est ici qu'il faut changer
   },
+  // ...
 ];
