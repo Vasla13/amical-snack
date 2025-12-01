@@ -12,7 +12,7 @@ export function useCart() {
 
 export function CartProvider({ children }) {
   const [cart, setCart] = useState([]);
-  const { userData: user } = useAuth(); // On récupère userData pour l'ID
+  const { userData: user } = useAuth();
 
   // Ajouter un produit
   const addToCart = (product) => {
@@ -37,7 +37,12 @@ export function CartProvider({ children }) {
     );
   };
 
-  // Créer la commande (Valider le panier)
+  // Vider le panier (NOUVEAU)
+  const clearCart = () => {
+    setCart([]);
+  };
+
+  // Créer la commande
   const createOrder = async (onSuccess, onError) => {
     if (!cart.length || !user?.uid) return;
 
@@ -51,7 +56,6 @@ export function CartProvider({ children }) {
     try {
       const total = cart.reduce((s, i) => s + i.price_cents * i.qty, 0);
 
-      // On capture la référence du document créé
       const docRef = await addDoc(collection(db, "orders"), {
         user_id: user.uid,
         items: cart,
@@ -62,9 +66,8 @@ export function CartProvider({ children }) {
         payment_method: null,
       });
 
-      setCart([]); // Vider le panier
+      clearCart(); // On utilise la nouvelle fonction ici aussi
 
-      // On passe l'ID du document au callback de succès
       if (onSuccess) onSuccess(docRef.id);
     } catch (e) {
       console.error(e);
@@ -81,9 +84,10 @@ export function CartProvider({ children }) {
     cart,
     addToCart,
     removeFromCart,
+    clearCart, // On exporte la fonction
     createOrder,
     totalItems,
-    setCart, // Au cas où on veut reset manuellement
+    setCart,
   };
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
