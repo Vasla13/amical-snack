@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from "react";
-import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { useLocation } from "react-router-dom";
 import {
   Ticket,
@@ -13,58 +12,18 @@ import {
 } from "lucide-react";
 import OrderFlow from "./OrderFlow.jsx";
 import { formatPrice } from "../../lib/format.js";
-import { useAuth } from "../../context/AuthContext.jsx";
-import { useCart } from "../../context/CartContext.jsx";
+import { useClientOrders } from "./hooks/useClientOrders.js"; // Import du hook
 
 export default function PassScreen({ db, onPay, onRequestCash }) {
-  const { userData: user } = useAuth();
-  const { addToCart } = useCart();
   const location = useLocation();
-  const [orders, setOrders] = useState([]);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [autoOpenId, setAutoOpenId] = useState(location.state?.openOrderId);
 
-  const handleReorder = (orderItems) => {
-    let count = 0;
-    orderItems.forEach((item) => {
-      for (let i = 0; i < (item.qty || 1); i++) {
-        addToCart(item);
-        count++;
-      }
-    });
-    alert(`${count} articles ajoutés au panier !`);
-  };
+  // Utilisation du hook
+  const { orders, coupons, regularOrders, user, handleReorder } =
+    useClientOrders(db);
 
-  useEffect(() => {
-    if (!user?.uid) return;
-    const q = query(collection(db, "orders"), where("user_id", "==", user.uid));
-    const unsub = onSnapshot(
-      q,
-      (s) => {
-        const loadedOrders = s.docs
-          .map((d) => ({ id: d.id, ...d.data() }))
-          .filter((o) =>
-            [
-              "created",
-              "scanned",
-              "cash",
-              "paid",
-              "served",
-              "reward_pending",
-            ].includes(o.status)
-          )
-          .sort((a, b) => {
-            const tA = a.created_at?.toMillis ? a.created_at.toMillis() : 0;
-            const tB = b.created_at?.toMillis ? b.created_at.toMillis() : 0;
-            return tB - tA;
-          });
-        setOrders(loadedOrders);
-      },
-      (error) => console.error("Erreur PassScreen :", error)
-    );
-    return () => unsub();
-  }, [user, db]);
-
+  // Gestion de l'ouverture automatique après une commande
   useEffect(() => {
     if (autoOpenId && orders.length > 0) {
       const target = orders.find((o) => o.id === autoOpenId);
@@ -75,6 +34,11 @@ export default function PassScreen({ db, onPay, onRequestCash }) {
       }
     }
   }, [orders, autoOpenId]);
+
+  const onReorderClick = (items) => {
+    const count = handleReorder(items);
+    alert(`${count} articles ajoutés au panier !`);
+  };
 
   if (selectedOrder) {
     const liveOrder =
@@ -90,9 +54,6 @@ export default function PassScreen({ db, onPay, onRequestCash }) {
     );
   }
 
-  const coupons = orders.filter((o) => o.status === "reward_pending");
-  const regularOrders = orders.filter((o) => o.status !== "reward_pending");
-
   return (
     <div className="p-4 min-h-full bg-slate-50 dark:bg-slate-950 pb-24 transition-colors">
       <h1 className="text-2xl font-black text-slate-800 dark:text-white mb-6 flex items-center gap-3">
@@ -102,6 +63,7 @@ export default function PassScreen({ db, onPay, onRequestCash }) {
         Mes Commandes
       </h1>
 
+      {/* Section Récompenses */}
       {coupons.length > 0 && (
         <div className="mb-8">
           <h2 className="text-xs font-black text-purple-600 dark:text-purple-400 uppercase tracking-widest mb-3 flex items-center gap-2 pl-1">
@@ -112,10 +74,10 @@ export default function PassScreen({ db, onPay, onRequestCash }) {
               <button
                 key={order.id}
                 onClick={() => setSelectedOrder(order)}
-                className="w-full bg-white dark:bg-slate-900 p-4 rounded-3xl border border-purple-100 dark:border-purple-900/50 shadow-sm shadow-purple-100/50 dark:shadow-none flex items-center justify-between active:scale-95 transition-all group"
+                className="w-full bg-white dark:bg-slate-900 p-4 rounded-3xl border border-purple-100 dark:border-purple-900/50 shadow-sm flex items-center justify-between active:scale-95 transition-all group"
               >
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-600 text-white flex items-center justify-center text-xl shadow-lg shadow-purple-500/30">
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-600 text-white flex items-center justify-center text-xl shadow-lg">
                     🎁
                   </div>
                   <div className="text-left">
@@ -127,10 +89,10 @@ export default function PassScreen({ db, onPay, onRequestCash }) {
                     </div>
                   </div>
                 </div>
-                <div className="w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-800 flex items-center justify-center group-hover:bg-purple-50 dark:group-hover:bg-purple-900/30 transition-colors">
+                <div className="w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-800 flex items-center justify-center">
                   <ChevronRight
                     size={18}
-                    className="text-slate-300 dark:text-slate-600 group-hover:text-purple-500 dark:group-hover:text-purple-400"
+                    className="text-slate-300 dark:text-slate-600"
                   />
                 </div>
               </button>
@@ -139,6 +101,7 @@ export default function PassScreen({ db, onPay, onRequestCash }) {
         </div>
       )}
 
+      {/* Section Commandes */}
       <div>
         <h2 className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2 pl-1">
           <ShoppingBag size={14} /> En cours & Historique
@@ -165,7 +128,7 @@ export default function PassScreen({ db, onPay, onRequestCash }) {
                 <div key={order.id} className="relative group">
                   <button
                     onClick={() => setSelectedOrder(order)}
-                    className="w-full bg-white dark:bg-slate-900 p-4 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-[0_4px_20px_rgb(0,0,0,0.02)] dark:shadow-none flex items-center justify-between active:scale-95 transition-all relative overflow-hidden pr-14"
+                    className="w-full bg-white dark:bg-slate-900 p-4 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm flex items-center justify-between active:scale-95 transition-all relative overflow-hidden pr-14"
                   >
                     <div
                       className={`absolute left-0 top-0 bottom-0 w-1.5 ${
@@ -179,7 +142,7 @@ export default function PassScreen({ db, onPay, onRequestCash }) {
                         </div>
                         <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5 font-medium">
                           <Clock size={12} />
-                          {order.items?.length} article(s) •{" "}
+                          {order.items?.length} art. •{" "}
                           {new Date(
                             order.created_at?.toMillis
                               ? order.created_at.toMillis()
@@ -190,10 +153,10 @@ export default function PassScreen({ db, onPay, onRequestCash }) {
                     </div>
                     <div className="flex items-center gap-3">
                       <div
-                        className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
+                        className={`w-10 h-10 rounded-full flex items-center justify-center ${
                           isPaid
-                            ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400"
-                            : "bg-slate-900 dark:bg-white text-white dark:text-slate-900"
+                            ? "bg-emerald-100 text-emerald-600"
+                            : "bg-slate-900 text-white"
                         }`}
                       >
                         {isPaid ? (
@@ -208,9 +171,9 @@ export default function PassScreen({ db, onPay, onRequestCash }) {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleReorder(order.items);
+                      onReorderClick(order.items);
                     }}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 z-10 p-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-full hover:bg-teal-100 dark:hover:bg-teal-900/30 hover:text-teal-700 dark:hover:text-teal-400 transition-colors shadow-sm border border-slate-200 dark:border-slate-700"
+                    className="absolute right-4 top-1/2 -translate-y-1/2 z-10 p-2 bg-slate-100 dark:bg-slate-800 text-slate-600 hover:bg-teal-100 hover:text-teal-700 rounded-full transition-colors border border-slate-200 dark:border-slate-700"
                     title="Commander à nouveau"
                   >
                     <RotateCcw size={18} />

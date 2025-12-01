@@ -1,47 +1,10 @@
-import React, { useMemo } from "react";
+import React from "react";
 import { formatPrice } from "../../../lib/format.js";
-import {
-  TrendingUp,
-  Award,
-  DollarSign,
-  ShoppingCart,
-  Calendar,
-} from "lucide-react";
+import { TrendingUp, Award, DollarSign, ShoppingCart } from "lucide-react";
+import { useAdminStats } from "../hooks/useAdminStats.js"; // Import du hook
 
 export default function AdminStatsTab({ orders }) {
-  const stats = useMemo(() => {
-    // Commandes valides uniquement
-    const validOrders = orders.filter(
-      (o) => o.status === "paid" || o.status === "served"
-    );
-
-    // 1. Chiffre d'affaires
-    const totalRevenue = validOrders.reduce(
-      (sum, o) => sum + (o.total_cents || 0),
-      0
-    );
-
-    // 2. Best Seller
-    const productCounts = {};
-    validOrders.forEach((o) => {
-      o.items?.forEach((item) => {
-        const name = item.name;
-        productCounts[name] = (productCounts[name] || 0) + (item.qty || 1);
-      });
-    });
-
-    const sortedProducts = Object.entries(productCounts).sort(
-      (a, b) => b[1] - a[1]
-    );
-    const bestSeller = sortedProducts[0];
-
-    // 3. Panier moyen
-    const averageCart = validOrders.length
-      ? totalRevenue / validOrders.length
-      : 0;
-
-    return { totalRevenue, bestSeller, averageCart, count: validOrders.length };
-  }, [orders]);
+  const stats = useAdminStats(orders);
 
   const StatCard = ({ icon: Icon, label, value, colorClass, sub }) => (
     <div className="bg-white p-5 rounded-[1.2rem] shadow-sm border border-slate-100 flex flex-col justify-between h-32 relative overflow-hidden">
@@ -51,7 +14,6 @@ export default function AdminStatsTab({ orders }) {
           "bg"
         )}`}
       />
-
       <div className="flex items-center gap-2 mb-1">
         <div
           className={`p-2 rounded-lg bg-opacity-10 ${colorClass.replace(
@@ -65,7 +27,6 @@ export default function AdminStatsTab({ orders }) {
           {label}
         </span>
       </div>
-
       <div>
         <div className="text-2xl font-black text-slate-800 tracking-tight">
           {value}
