@@ -7,8 +7,8 @@ import {
 } from "firebase/firestore";
 import confetti from "canvas-confetti";
 import { generateToken } from "../../../lib/token.js";
+import { useFeedback } from "../../../hooks/useFeedback.js"; // IMPORT
 
-// Configuration du jeu
 const COST = 10;
 const TOTAL_ITEMS = 80;
 const WINNER_INDEX = 60;
@@ -17,7 +17,6 @@ const ITEM_WIDTH = 120;
 const GAP = 12;
 const EASING = "cubic-bezier(0.15, 0.85, 0.25, 1)";
 
-// Helpers
 function normalizePoints(points) {
   return typeof points === "number" && !Number.isNaN(points) ? points : 0;
 }
@@ -43,7 +42,6 @@ function nextFrame() {
   return new Promise((r) => requestAnimationFrame(() => r()));
 }
 
-// Le Hook Principal
 export function useRouletteLogic({ user, products, db, notify }) {
   const [gameState, setGameState] = useState("idle");
   const [strip, setStrip] = useState([]);
@@ -52,6 +50,8 @@ export function useRouletteLogic({ user, products, db, notify }) {
   const winnerRef = useRef(null);
   const animationRef = useRef(null);
   const mountedRef = useRef(false);
+
+  const { trigger } = useFeedback(); // HOOK FEEDBACK
 
   const availableProducts = useMemo(
     () => (products || []).filter((p) => p && p.id && p.is_available !== false),
@@ -100,6 +100,7 @@ export function useRouletteLogic({ user, products, db, notify }) {
 
     setStrip(gameStrip);
     setGameState("spinning");
+    trigger("spin"); // SON DÉPART
 
     await nextFrame();
     await nextFrame();
@@ -149,10 +150,8 @@ export function useRouletteLogic({ user, products, db, notify }) {
       await runTransaction(db, async (tx) => {
         const userRef = doc(db, "users", user.uid);
         const orderRef = doc(collection(db, "orders"));
-
         const snap = await tx.get(userRef);
         if (!snap.exists()) throw new Error("USER_NOT_FOUND");
-
         const pts = normalizePoints(snap.data()?.points);
         if (pts < COST) throw new Error("POINTS_LOW");
 
@@ -174,23 +173,22 @@ export function useRouletteLogic({ user, products, db, notify }) {
       });
 
       setGameState("won");
+      trigger("success"); // SON CS:GO REVEAL 🔊
 
-      // --- OPTIMISATION CONFETTI ---
-      // Réduction drastique du nombre de particules (100 -> 40)
-      // Désactivation de la physique pour éviter les calculs lourds (scalar réduit)
       confetti({
         particleCount: 40,
         spread: 60,
         origin: { y: 0.6 },
-        disableForReducedMotion: true, // Respecte les préférences système
-        scalar: 0.8, // Particules un peu plus petites
+        disableForReducedMotion: true,
+        scalar: 0.8,
         drift: 0,
-        ticks: 200, // Durée de vie plus courte
+        ticks: 200,
       });
 
       if (onSuccess) onSuccess(winnerItem);
     } catch (err) {
       setGameState("idle");
+      trigger("error");
       notify?.(
         err?.message === "POINTS_LOW"
           ? "Points insuffisants"

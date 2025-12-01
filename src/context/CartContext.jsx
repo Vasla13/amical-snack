@@ -3,6 +3,7 @@ import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { db } from "../config/firebase";
 import { generateToken } from "../lib/token";
 import { useAuth } from "./AuthContext";
+import { useFeedback } from "../hooks/useFeedback"; // IMPORT
 
 const CartContext = createContext();
 
@@ -13,10 +14,11 @@ export function useCart() {
 export function CartProvider({ children }) {
   const [cart, setCart] = useState([]);
   const { userData: user } = useAuth();
+  const { trigger } = useFeedback();
 
-  // Ajouter un produit
   const addToCart = (product) => {
     if (product.is_available === false) return;
+    trigger("click"); // FEEDBACK
     setCart((prev) => {
       const existing = prev.find((i) => i.id === product.id);
       if (existing) {
@@ -28,8 +30,8 @@ export function CartProvider({ children }) {
     });
   };
 
-  // Retirer/Diminuer un produit
   const removeFromCart = (productId) => {
+    trigger("click"); // FEEDBACK
     setCart((prev) =>
       prev
         .map((i) => (i.id === productId ? { ...i, qty: i.qty - 1 } : i))
@@ -37,25 +39,17 @@ export function CartProvider({ children }) {
     );
   };
 
-  // Vider le panier (NOUVEAU)
-  const clearCart = () => {
-    setCart([]);
-  };
+  const clearCart = () => setCart([]);
 
-  // Créer la commande
   const createOrder = async (onSuccess, onError) => {
     if (!cart.length || !user?.uid) return;
-
-    // Vérif stock (sécurité simple côté client)
     const outOfStock = cart.find((i) => i.is_available === false);
     if (outOfStock) {
       if (onError) onError(`Rupture : ${outOfStock.name}`);
       return;
     }
-
     try {
       const total = cart.reduce((s, i) => s + i.price_cents * i.qty, 0);
-
       const docRef = await addDoc(collection(db, "orders"), {
         user_id: user.uid,
         items: cart,
@@ -65,9 +59,7 @@ export function CartProvider({ children }) {
         created_at: serverTimestamp(),
         payment_method: null,
       });
-
-      clearCart(); // On utilise la nouvelle fonction ici aussi
-
+      clearCart();
       if (onSuccess) onSuccess(docRef.id);
     } catch (e) {
       console.error(e);
@@ -84,7 +76,7 @@ export function CartProvider({ children }) {
     cart,
     addToCart,
     removeFromCart,
-    clearCart, // On exporte la fonction
+    clearCart,
     createOrder,
     totalItems,
     setCart,

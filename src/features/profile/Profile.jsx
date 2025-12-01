@@ -2,12 +2,13 @@ import React, { useEffect, useState } from "react";
 import { collection, onSnapshot } from "firebase/firestore";
 import { User, Trophy, Medal, Settings, CreditCard } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import ProfileLeaderboard from "./tabs/ProfileLeaderboard"; // IMPORT DU NOUVEAU FICHIER
+import ProfileLeaderboard from "./tabs/ProfileLeaderboard";
 import ProfileSettings from "./tabs/ProfileSettings";
+import ProfileLevels from "./tabs/ProfileLevels"; // IMPORT
 
 export default function Profile({ user, logout, db, uid, auth }) {
   const [users, setUsers] = useState([]);
-  const [activeTab, setActiveTab] = useState("stats");
+  const [activeTab, setActiveTab] = useState("levels"); // 'levels' par défaut
 
   useEffect(() => {
     if (!db) return;
@@ -21,33 +22,6 @@ export default function Profile({ user, logout, db, uid, auth }) {
       .toFixed(2)
       .replace(/[.,]00$/, "");
 
-  const badges = [
-    {
-      name: "Bienvenue",
-      icon: "👋",
-      unlocked: true,
-      desc: "Première connexion",
-    },
-    {
-      name: "Caféinomane",
-      icon: "☕",
-      unlocked: (user?.points || 0) > 20,
-      desc: "20 pts cumulés",
-    },
-    {
-      name: "Gros Mangeur",
-      icon: "🍔",
-      unlocked: (user?.points || 0) > 50,
-      desc: "50 pts cumulés",
-    },
-    {
-      name: "Légende",
-      icon: "👑",
-      unlocked: user?.role === "admin",
-      desc: "Être Admin",
-    },
-  ];
-
   return (
     <div className="min-h-full pb-24 px-4 pt-4 bg-slate-50 dark:bg-slate-950 relative overflow-hidden font-sans transition-colors">
       <div className="fixed top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
@@ -60,7 +34,6 @@ export default function Profile({ user, logout, db, uid, auth }) {
         animate={{ opacity: 1, y: 0 }}
         className="relative z-10 max-w-md mx-auto space-y-8"
       >
-        {/* Header */}
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-black text-slate-800 dark:text-white tracking-tight">
@@ -79,11 +52,11 @@ export default function Profile({ user, logout, db, uid, auth }) {
           </div>
         </div>
 
-        {/* CARTE DE MEMBRE */}
         <div className="group relative w-full aspect-[1.586/1] rounded-[24px] transition-all duration-500 hover:scale-[1.02] shadow-2xl shadow-slate-200/50 dark:shadow-none">
           <div className="absolute inset-0 bg-white dark:bg-slate-900 rounded-[24px] overflow-hidden border border-slate-100 dark:border-slate-700">
             <div className="absolute top-0 right-0 w-64 h-64 bg-teal-500/10 dark:bg-teal-500/10 rounded-full blur-3xl -mr-16 -mt-16" />
             <div className="absolute bottom-0 left-0 w-64 h-64 bg-purple-500/10 dark:bg-purple-500/10 rounded-full blur-3xl -ml-16 -mb-16" />
+            <div className="absolute -inset-full top-0 block h-full w-1/2 -skew-x-12 bg-gradient-to-r from-transparent to-white/40 dark:to-white/5 opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
 
             <div className="relative h-full flex flex-col justify-between p-6 z-10">
               <div className="flex justify-between items-start">
@@ -159,10 +132,9 @@ export default function Profile({ user, logout, db, uid, auth }) {
           </div>
         </div>
 
-        {/* Onglets */}
         <div className="bg-white dark:bg-slate-900 p-1.5 rounded-2xl border border-slate-200/60 dark:border-slate-800 shadow-sm flex gap-1 relative z-20">
           {[
-            { id: "stats", label: "Succès", icon: Medal },
+            { id: "levels", label: "Niveaux", icon: Medal },
             { id: "leaderboard", label: "Classement", icon: Trophy },
             { id: "settings", label: "Paramètres", icon: Settings },
           ].map((tab) => (
@@ -181,44 +153,18 @@ export default function Profile({ user, logout, db, uid, auth }) {
           ))}
         </div>
 
-        {/* Contenu Onglets */}
         <AnimatePresence mode="wait">
-          {activeTab === "stats" && (
+          {activeTab === "levels" && (
             <motion.div
-              key="stats"
+              key="levels"
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="grid grid-cols-2 gap-4"
             >
-              {badges.map((badge, idx) => (
-                <div
-                  key={idx}
-                  className={`relative overflow-hidden p-4 rounded-2xl border transition-all duration-300 group ${
-                    badge.unlocked
-                      ? "bg-white dark:bg-slate-900 border-purple-100 dark:border-purple-900 shadow-lg shadow-purple-100/50 dark:shadow-none"
-                      : "bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 opacity-70 grayscale"
-                  }`}
-                >
-                  <div className="flex flex-col items-center text-center gap-2">
-                    <div className="text-4xl drop-shadow-sm transform group-hover:scale-110 transition-transform duration-300">
-                      {badge.icon}
-                    </div>
-                    <div>
-                      <h4 className="font-black text-slate-800 dark:text-white text-sm">
-                        {badge.name}
-                      </h4>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mt-1">
-                        {badge.desc}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              ))}
+              <ProfileLevels user={user} />
             </motion.div>
           )}
 
-          {/* Intégration du composant Leaderboard */}
           {activeTab === "leaderboard" && (
             <motion.div
               key="leaderboard"
@@ -230,7 +176,6 @@ export default function Profile({ user, logout, db, uid, auth }) {
             </motion.div>
           )}
 
-          {/* Intégration du composant Settings */}
           {activeTab === "settings" && (
             <motion.div
               key="settings"

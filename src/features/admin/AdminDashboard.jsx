@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   BarChart2,
   RefreshCw,
+  Users, // IMPORT
 } from "lucide-react";
 import { collection, getDocs, deleteDoc, addDoc } from "firebase/firestore";
 import { SEED_PRODUCTS } from "../../data/seedProducts.js";
@@ -16,25 +17,20 @@ import AdminOrdersTab from "./tabs/AdminOrdersTab.jsx";
 import AdminHistoryTab from "./tabs/AdminHistoryTab.jsx";
 import AdminStockTab from "./tabs/AdminStockTab.jsx";
 import AdminStatsTab from "./tabs/AdminStatsTab.jsx";
-import Modal from "../../ui/Modal.jsx"; // 1. Import Modal
+import AdminUsersTab from "./tabs/AdminUsersTab.jsx"; // IMPORT
+import Modal from "../../ui/Modal.jsx";
 
 export default function AdminDashboard({ db, products, onLogout }) {
   const [adminTab, setAdminTab] = useState("orders");
   const [feedback, setFeedback] = useState(null);
-
-  // 2. État pour la modale de reset
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
 
   const { orders, loading, error, ORDER_TTL_MS } = useAdminOrders(db);
 
   if (error && !feedback) setFeedback({ type: "error", msg: error });
 
-  // 3. Fonction déclenchée par le bouton "Reset"
-  const requestSeed = () => {
-    setIsResetModalOpen(true);
-  };
+  const requestSeed = () => setIsResetModalOpen(true);
 
-  // 4. Fonction exécutée après confirmation
   const confirmSeed = async () => {
     setIsResetModalOpen(false);
     try {
@@ -67,7 +63,6 @@ export default function AdminDashboard({ db, products, onLogout }) {
 
   return (
     <div className="flex flex-col h-full bg-slate-50">
-      {/* 5. Intégration de la Modale */}
       <Modal
         isOpen={isResetModalOpen}
         title="Réinitialiser le stock ?"
@@ -78,11 +73,10 @@ export default function AdminDashboard({ db, products, onLogout }) {
       >
         <p className="text-center text-slate-600">
           Attention : Cela va <b>supprimer tous les produits actuels</b> et
-          remettre ceux par défaut. Cette action est irréversible.
+          remettre ceux par défaut.
         </p>
       </Modal>
 
-      {/* HEADER */}
       <header className="px-4 py-4 bg-white border-b border-slate-200 flex justify-between items-center sticky top-0 z-20 shadow-sm">
         <div>
           <h1 className="font-black text-lg text-slate-900 tracking-tight leading-none">
@@ -94,30 +88,27 @@ export default function AdminDashboard({ db, products, onLogout }) {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={requestSeed} // Appel de la modale
+            onClick={requestSeed}
             className="p-2 rounded-xl bg-slate-100 text-slate-500 hover:bg-red-50 hover:text-red-500 transition-colors"
-            title="Reset Stock"
           >
             <RefreshCw size={18} />
           </button>
           <button
             onClick={onLogout}
             className="p-2 rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors"
-            title="Déconnexion"
           >
             <LogOut size={18} />
           </button>
         </div>
       </header>
 
-      {/* FEEDBACK BANNER */}
       {feedback && (
         <div
           onClick={() => setFeedback(null)}
-          className={`mx-4 mt-4 p-3 rounded-xl flex items-center gap-3 font-bold text-xs shadow-sm animate-in fade-in slide-in-from-top-2 cursor-pointer ${
+          className={`mx-4 mt-4 p-3 rounded-xl flex items-center gap-3 font-bold text-xs shadow-sm cursor-pointer ${
             feedback.type === "success"
-              ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
-              : "bg-rose-100 text-rose-800 border border-rose-200"
+              ? "bg-emerald-100 text-emerald-800 border-emerald-200"
+              : "bg-rose-100 text-rose-800 border-rose-200"
           }`}
         >
           {feedback.type === "success" ? (
@@ -129,15 +120,14 @@ export default function AdminDashboard({ db, products, onLogout }) {
         </div>
       )}
 
-      {/* TABS */}
       <div className="px-4 py-3 overflow-x-auto no-scrollbar flex gap-2 border-b border-slate-100 bg-slate-50/50 backdrop-blur-sm sticky top-[69px] z-10">
-        <TabButton id="orders" icon={Camera} label="Scan & Commandes" />
-        <TabButton id="stock" icon={Package} label="Gestion Stock" />
+        <TabButton id="orders" icon={Camera} label="Commandes" />
+        <TabButton id="users" icon={Users} label="Membres" />
+        <TabButton id="stock" icon={Package} label="Stock" />
         <TabButton id="history" icon={History} label="Historique" />
-        <TabButton id="stats" icon={BarChart2} label="Statistiques" />
+        <TabButton id="stats" icon={BarChart2} label="Stats" />
       </div>
 
-      {/* CONTENT */}
       <main className="flex-1 overflow-y-auto p-4 pb-20">
         {adminTab === "orders" && (
           <AdminOrdersTab
@@ -148,6 +138,7 @@ export default function AdminDashboard({ db, products, onLogout }) {
             setFeedback={setFeedback}
           />
         )}
+        {adminTab === "users" && <AdminUsersTab db={db} />}
         {adminTab === "history" && <AdminHistoryTab orders={orders} />}
         {adminTab === "stock" && <AdminStockTab db={db} products={products} />}
         {adminTab === "stats" && <AdminStatsTab orders={orders} />}
