@@ -148,7 +148,7 @@ export default function App() {
   const payOrder = async (method, order) => {
     const totalCents = Number(order.total_cents || 0);
     const pointsEarned = totalCents / 100;
-    const currentMonthKey = new Date().toISOString().slice(0, 7);
+    const currentMonthKey = new Date().toISOString().slice(0, 7); // Format YYYY-MM
 
     if (method === "paypal_balance") {
       const balance = Number(userDataRef.current?.balance_cents || 0);

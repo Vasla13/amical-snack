@@ -83,6 +83,7 @@ export function AuthProvider({ children }) {
     userData,
     loading,
     isAdmin: userData?.role === "admin",
+    db, // <--- AJOUT CRUCIAL : On expose 'db' pour les autres composants
   };
 
   return (

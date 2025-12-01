@@ -29,7 +29,7 @@ export default function AdminOrdersTab({
     }).format(new Date(ms));
   };
 
-  // CORRECTION : Nettoyage du token au scan (garde seulement la fin après le dernier /)
+  // CORRECTION: Nettoyage de l'URL pour ne garder que le token
   const cleanToken = (input) => {
     if (!input) return "";
     const val = String(input).trim();
@@ -103,8 +103,6 @@ export default function AdminOrdersTab({
         const uSnap = await getDoc(uRef);
         if (uSnap.exists()) {
           const cur = Number(uSnap.data().points || 0);
-          // CORRECTION Leaderboard : Incrémentation manuelle de l'historique ici aussi si nécessaire
-          // Note : Pour l'historique, voir App.jsx qui gère la simulation paypal
           await updateDoc(uRef, { points: cur + Number(o.total_cents) / 100 });
         }
       }

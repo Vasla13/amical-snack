@@ -175,12 +175,12 @@ export default function RouletteGame({
         lastUpdated: serverTimestamp(),
       });
 
-      // CORRECTION : status 'reward_pending' et structure 'items' pour PassScreen
+      // CORRECTION: Structure compatible avec PassScreen et statut 'reward_pending'
       tx.set(orderRef, {
         user_id: user.uid,
-        items: [{ ...item, qty: 1, price_cents: 0 }], // Format standard
+        items: [{ ...item, qty: 1, price_cents: 0 }],
         total_cents: 0,
-        status: "reward_pending", // Pour apparaître dans "Récompenses"
+        status: "reward_pending", // Statut écouté par PassScreen
         payment_method: "roulette",
         qr_token: token,
         created_at: serverTimestamp(),

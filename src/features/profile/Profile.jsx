@@ -109,7 +109,6 @@ export default function Profile({ user, logout, db, uid, auth }) {
 
   return (
     <div className="min-h-full pb-24 px-4 pt-4 bg-slate-50 dark:bg-slate-950 relative overflow-hidden font-sans transition-colors">
-      {/* Background Ambience */}
       <div className="fixed top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
         <div className="absolute top-[-10%] right-[-10%] w-[500px] h-[500px] bg-teal-400/10 rounded-full blur-[100px]" />
         <div className="absolute bottom-[-10%] left-[-10%] w-[500px] h-[500px] bg-purple-400/10 rounded-full blur-[100px]" />
@@ -120,7 +119,6 @@ export default function Profile({ user, logout, db, uid, auth }) {
         animate={{ opacity: 1, y: 0 }}
         className="relative z-10 max-w-md mx-auto space-y-8"
       >
-        {/* HEADER */}
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-black text-slate-800 dark:text-white tracking-tight">
@@ -139,7 +137,6 @@ export default function Profile({ user, logout, db, uid, auth }) {
           </div>
         </div>
 
-        {/* CARTE FIDÉLITÉ "BLACK CARD" */}
         <div className="group relative w-full aspect-[1.586/1] rounded-[24px] transition-all duration-500 hover:scale-[1.02]">
           <div className="absolute inset-0 bg-slate-900 rounded-[24px] overflow-hidden shadow-2xl shadow-slate-900/30 border border-slate-700">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_-20%,_#334155,_#0f172a)]" />
@@ -195,7 +192,6 @@ export default function Profile({ user, logout, db, uid, auth }) {
           </div>
         </div>
 
-        {/* TABS NAVIGATION */}
         <div className="bg-white dark:bg-slate-900 p-1.5 rounded-2xl border border-slate-200/60 dark:border-slate-800 shadow-sm flex gap-1 relative z-20">
           {[
             { id: "stats", label: "Succès", icon: Medal },
@@ -217,9 +213,7 @@ export default function Profile({ user, logout, db, uid, auth }) {
           ))}
         </div>
 
-        {/* CONTENT */}
         <AnimatePresence mode="wait">
-          {/* --- TAB: STATS --- */}
           {activeTab === "stats" && (
             <motion.div
               key="stats"
@@ -255,7 +249,6 @@ export default function Profile({ user, logout, db, uid, auth }) {
             </motion.div>
           )}
 
-          {/* --- TAB: LEADERBOARD --- */}
           {activeTab === "leaderboard" && (
             <motion.div
               key="leaderboard"
@@ -264,7 +257,6 @@ export default function Profile({ user, logout, db, uid, auth }) {
               exit={{ opacity: 0, y: -10 }}
               className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden"
             >
-              {/* Filters */}
               <div className="p-4 border-b border-slate-50 dark:border-slate-800 flex justify-center bg-slate-50/50 dark:bg-slate-900/50">
                 <div className="flex bg-white dark:bg-slate-800 p-1 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700">
                   {["all", "month"].map((t) => (
@@ -283,7 +275,6 @@ export default function Profile({ user, logout, db, uid, auth }) {
                 </div>
               </div>
 
-              {/* List */}
               <div className="divide-y divide-slate-50 dark:divide-slate-800">
                 {top10.map((u, i) => {
                   const isMe = uid === u.id;
@@ -351,7 +342,6 @@ export default function Profile({ user, logout, db, uid, auth }) {
             </motion.div>
           )}
 
-          {/* --- TAB: SETTINGS --- */}
           {activeTab === "settings" && (
             <motion.div
               key="settings"

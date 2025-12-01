@@ -12,7 +12,7 @@ import {
 import { collection, getDocs, deleteDoc, addDoc } from "firebase/firestore";
 import { SEED_PRODUCTS } from "../../data/seedProducts.js";
 import { useAdminOrders } from "./hooks/useAdminOrders.js";
-import AdminOrdersTab from "./tabs/AdminOrdersTab.jsx";
+import AdminOrdersTab from "./tabs/AdminOrdersTab.jsx"; // C'est ici qu'on appelle l'autre fichier
 import AdminHistoryTab from "./tabs/AdminHistoryTab.jsx";
 import AdminStockTab from "./tabs/AdminStockTab.jsx";
 import AdminStatsTab from "./tabs/AdminStatsTab.jsx";
@@ -108,7 +108,7 @@ export default function AdminDashboard({ db, products, onLogout }) {
         </div>
       )}
 
-      {/* TABS (Scrollable horizontal) */}
+      {/* TABS */}
       <div className="px-4 py-3 overflow-x-auto no-scrollbar flex gap-2 border-b border-slate-100 bg-slate-50/50 backdrop-blur-sm sticky top-[69px] z-10">
         <TabButton id="orders" icon={Camera} label="Scan & Commandes" />
         <TabButton id="stock" icon={Package} label="Gestion Stock" />

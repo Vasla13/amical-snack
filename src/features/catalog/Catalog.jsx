@@ -7,7 +7,7 @@ import Skeleton from "../../ui/Skeleton.jsx";
 import ProductModal from "./ProductModal.jsx";
 import { doc, updateDoc, arrayUnion, arrayRemove } from "firebase/firestore";
 
-// Composant Bouton Animé
+// AJOUT : Composant Bouton Animé
 function AddButton({ onClick, available }) {
   const [clicked, setClicked] = useState(false);
 
@@ -16,7 +16,7 @@ function AddButton({ onClick, available }) {
     if (!available) return;
     setClicked(true);
     onClick();
-    setTimeout(() => setClicked(false), 500);
+    setTimeout(() => setClicked(false), 500); // 500ms d'animation
   };
 
   return (
@@ -43,7 +43,7 @@ function AddButton({ onClick, available }) {
 
 export default function Catalog({ products }) {
   const { cart, addToCart } = useCart();
-  const { user, userData, db } = useAuth();
+  const { user, userData, db } = useAuth(); // db est maintenant défini !
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("Tout");
   const [loading, setLoading] = useState(true);
@@ -78,6 +78,10 @@ export default function Catalog({ products }) {
 
   const toggleFavorite = async (product) => {
     if (!user) return;
+    if (!db) {
+      console.error("Database connection not found");
+      return;
+    }
     const ref = doc(db, "users", user.uid);
     const isFav = favorites.includes(product.id);
     try {
@@ -91,8 +95,8 @@ export default function Catalog({ products }) {
 
   return (
     <div className="px-4 pb-4 min-h-full flex flex-col">
-      {/* CORRECTION : Z-Index augmenté à 50 pour passer au dessus des items */}
-      <div className="sticky top-0 z-50 bg-slate-50/95 dark:bg-slate-950/95 backdrop-blur pt-2 pb-1 transition-colors">
+      {/* HEADER RECHERCHE : z-40 pour être au-dessus des cœurs (z-30) */}
+      <div className="sticky top-0 z-40 bg-slate-50/95 dark:bg-slate-950/95 backdrop-blur pt-2 pb-1 transition-colors">
         <div className="relative mb-4 shadow-sm group">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5 transition-colors group-focus-within:text-teal-500" />
           <input
@@ -165,7 +169,7 @@ export default function Catalog({ products }) {
                     </div>
                   )}
 
-                  {/* Bouton favoris */}
+                  {/* COEUR : z-30 pour être cliquable mais sous le header (z-40) */}
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -203,6 +207,7 @@ export default function Catalog({ products }) {
                       <span className="font-black text-lg text-slate-700 dark:text-slate-300">
                         {formatPrice(p.price_cents)}
                       </span>
+                      {/* Utilisation du bouton animé */}
                       <AddButton
                         available={available}
                         onClick={() => addToCart(p)}
