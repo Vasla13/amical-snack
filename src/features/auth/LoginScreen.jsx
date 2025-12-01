@@ -5,7 +5,7 @@ import {
   sendPasswordResetEmail,
 } from "firebase/auth";
 import { auth } from "../../config/firebase.js";
-import { UHA_KV_RQ, ADMIN_EMAIL } from "../../config/constants.js";
+import { UHA_KV_RQ, ADMIN_EMAIL, APP_URL } from "../../config/constants.js"; // IMPORT DE APP_URL
 import Button from "../../ui/Button.jsx";
 import {
   Mail,
@@ -40,7 +40,8 @@ export default function LoginScreen() {
     try {
       setLoading(true);
       const actionCodeSettings = {
-        url: window.location.origin + "/login",
+        // Utilisation de la constante globale
+        url: APP_URL + "/login",
         handleCodeInApp: true,
       };
       await sendSignInLinkToEmail(auth, e, actionCodeSettings);
@@ -75,15 +76,15 @@ export default function LoginScreen() {
     }
   };
 
-  // CORRECTION : Ajout de l'URL de redirection pour le reset password
   const handleForgot = async () => {
     const e = email.trim();
     if (!e) return setError("Entre ton email dans le champ ci-dessus.");
 
     try {
-      // On définit l'URL de redirection vers ta page AuthAction
+      setLoading(true);
       const actionCodeSettings = {
-        url: window.location.origin + "/auth/action",
+        // Utilisation de la constante globale
+        url: APP_URL + "/auth/action",
         handleCodeInApp: true,
       };
 
@@ -99,6 +100,8 @@ export default function LoginScreen() {
       } else {
         setError("Erreur : " + err.message);
       }
+    } finally {
+      setLoading(false);
     }
   };
 

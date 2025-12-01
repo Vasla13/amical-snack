@@ -2,12 +2,15 @@ import React, { useState, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { verifyPasswordResetCode, confirmPasswordReset } from "firebase/auth";
 import { auth } from "../../config/firebase";
+import { APP_URL } from "../../config/constants"; // IMPORT AJOUTÉ
 import Button from "../../ui/Button";
-import { KeyRound, CheckCircle2, AlertCircle } from "lucide-react";
+import { KeyRound, CheckCircle2 } from "lucide-react";
 
 export default function AuthAction() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+
+  // Firebase met le code dans 'oobCode' et le type dans 'mode'
   const mode = searchParams.get("mode");
   const oobCode = searchParams.get("oobCode");
 
@@ -19,7 +22,7 @@ export default function AuthAction() {
   const [verifying, setVerifying] = useState(true);
 
   useEffect(() => {
-    // Si ce n'est pas un reset de mot de passe, on ignore (ex: lien magique géré par App.jsx)
+    // Si ce n'est pas un reset de mot de passe, on ignore
     if (mode !== "resetPassword") {
       setVerifying(false);
       return;
@@ -52,7 +55,13 @@ export default function AuthAction() {
     try {
       await confirmPasswordReset(auth, oobCode, password);
       setSuccess(true);
-      setTimeout(() => navigate("/login"), 3000);
+
+      // CORRECTION MAJEURE ICI :
+      // Au lieu de navigate('/login') qui garde le domaine actuel (firebaseapp.com),
+      // on force le navigateur à aller sur le vrai domaine.
+      setTimeout(() => {
+        window.location.href = `${APP_URL}/login`;
+      }, 3000);
     } catch (err) {
       console.error(err);
       setError("Erreur : " + err.message);
@@ -61,7 +70,12 @@ export default function AuthAction() {
     }
   };
 
-  // 1. Affichage pendant la vérification du lien
+  // Gestion du bouton "Retour" en cas d'erreur
+  const handleBackToLogin = () => {
+    // On force aussi le bon domaine ici au cas où
+    window.location.href = `${APP_URL}/login`;
+  };
+
   if (mode === "resetPassword" && verifying) {
     return (
       <div className="h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900">
@@ -75,13 +89,7 @@ export default function AuthAction() {
     );
   }
 
-  // 2. Si ce n'est pas un reset password (ex: lien magique), on laisse App.jsx gérer ou on affiche rien
   if (mode !== "resetPassword") {
-    // Note: App.jsx s'occupe du mode 'signIn' (lien magique).
-    // Ici on retourne null pour éviter un écran blanc ou un conflit visuel si App.jsx ne prend pas le relais assez vite.
-    // Cependant, dans votre router actuel, '/auth/action' pointe vers ce composant.
-    // Pour un lien magique, le code de App.jsx devrait intercepter l'URL avant ou rediriger.
-    // Si ce composant est monté pour un 'signIn', on affiche un chargement générique.
     return (
       <div className="h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900">
         <div className="animate-spin w-10 h-10 border-4 border-teal-500 border-t-transparent rounded-full"></div>
@@ -89,7 +97,6 @@ export default function AuthAction() {
     );
   }
 
-  // 3. Écran de succès
   if (success) {
     return (
       <div className="h-screen flex flex-col items-center justify-center p-6 bg-slate-50 dark:bg-slate-950 text-center">
@@ -106,7 +113,6 @@ export default function AuthAction() {
     );
   }
 
-  // 4. Formulaire principal (ou erreur si lien invalide)
   return (
     <div className="h-screen flex flex-col items-center justify-center p-6 bg-slate-50 dark:bg-slate-950">
       <div className="w-full max-w-md bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] shadow-xl border border-slate-100 dark:border-slate-800">
@@ -126,10 +132,7 @@ export default function AuthAction() {
           <div className="p-4 bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 rounded-xl text-center font-bold mb-4 border border-rose-100 dark:border-rose-900">
             {error}
             <div className="mt-4">
-              <Button
-                onClick={() => navigate("/login")}
-                className="w-full text-xs"
-              >
+              <Button onClick={handleBackToLogin} className="w-full text-xs">
                 Retour au login
               </Button>
             </div>

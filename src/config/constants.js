@@ -3,3 +3,6 @@ export const ADMIN_EMAIL = "eripet05@hotmail.com";
 
 // Regex pour forcer l'email UHA (étudiants et profs)
 export const UHA_KV_RQ = /^[a-zA-Z0-9._-]+@uha\.fr$/;
+
+// URL de production (force le retour sur ce domaine)
+export const APP_URL = "https://www.amicale-rt.fr";

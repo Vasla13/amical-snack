@@ -1,19 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
-import {
-  collection,
-  onSnapshot,
-  doc,
-  updateDoc,
-  arrayUnion,
-  arrayRemove,
-} from "firebase/firestore";
+import { collection, onSnapshot } from "firebase/firestore";
 import { updatePassword } from "firebase/auth";
 import {
   User,
   LogOut,
   Trophy,
   KeyRound,
-  Sparkles,
   Medal,
   Settings,
   CreditCard,
