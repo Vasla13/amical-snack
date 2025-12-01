@@ -10,7 +10,9 @@ import confetti from "canvas-confetti";
 import Button from "../../../ui/Button.jsx";
 import { generateToken } from "../../../lib/token.js";
 
-const COST = 5;
+// MODIFICATION ICI : Coût à 10 points
+const COST = 10;
+
 const ITEM_WIDTH = 120;
 const ITEM_HEIGHT = 140;
 const GAP = 12;
@@ -19,6 +21,12 @@ const WINNER_INDEX = 60;
 const SPIN_SECONDS = 7;
 const EASING = "cubic-bezier(0.15, 0.85, 0.25, 1)";
 
+// ... Reste du fichier inchangé ...
+// Pour gagner de la place, je ne remets pas tout le contenu identique,
+// assurez-vous juste de changer "const COST = 5;" en "const COST = 10;"
+// et de garder le reste du fichier tel quel.
+
+// Voici tout le code pour éviter les erreurs de copier-coller partiel :
 function normalizePoints(points) {
   return typeof points === "number" && !Number.isNaN(points) ? points : 0;
 }
@@ -175,12 +183,11 @@ export default function RouletteGame({
         lastUpdated: serverTimestamp(),
       });
 
-      // CORRECTION: Structure compatible avec PassScreen et statut 'reward_pending'
       tx.set(orderRef, {
         user_id: user.uid,
         items: [{ ...item, qty: 1, price_cents: 0 }],
         total_cents: 0,
-        status: "reward_pending", // Statut écouté par PassScreen
+        status: "reward_pending",
         payment_method: "roulette",
         qr_token: token,
         created_at: serverTimestamp(),

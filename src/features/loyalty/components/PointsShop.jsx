@@ -8,8 +8,9 @@ import {
 import { Ticket } from "lucide-react";
 import { generateToken } from "../../../lib/token.js";
 
-const COST_STD = 10;
-const COST_REDBULL = 12;
+// MODIFICATION ICI : Coût à 15 points pour tout
+const COST_STD = 15;
+const COST_REDBULL = 15;
 
 const normalizePoints = (value) => {
   const num =
@@ -56,7 +57,7 @@ export default function PointsShop({ user, products, db, notify, onConfirm }) {
             });
           });
 
-          notify("Coupon ajouté au Pass !", "success");
+          notify("Coupon ajout\u00e9 au Pass !", "success");
         } catch (error) {
           notify(
             error?.message === "POINTS_LOW"

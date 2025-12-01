@@ -40,7 +40,6 @@ export default function LoginScreen() {
     try {
       setLoading(true);
       const actionCodeSettings = {
-        // CORRECTION : On force une URL propre pour éviter les bugs de redirection
         url: window.location.origin + "/login",
         handleCodeInApp: true,
       };
@@ -49,7 +48,6 @@ export default function LoginScreen() {
       setEmailSent(true);
     } catch (err) {
       console.error(err);
-      // AJOUT : Gestion spécifique de l'erreur réseau
       if (err?.code === "auth/network-request-failed") {
         setError("Pas de connexion internet. Vérifie ton réseau.");
       } else if (err?.code === "auth/quota-exceeded") {
@@ -77,13 +75,23 @@ export default function LoginScreen() {
     }
   };
 
+  // CORRECTION : Meilleure gestion d'erreur pour le reset password
   const handleForgot = async () => {
-    if (!email) return setError("Entre ton email pour réinitialiser.");
+    const e = email.trim();
+    if (!e) return setError("Entre ton email dans le champ ci-dessus.");
     try {
-      await sendPasswordResetEmail(auth, email);
-      setSuccessMsg("Lien de réinitialisation envoyé !");
-    } catch {
-      setError("Erreur d'envoi (email invalide ?).");
+      await sendPasswordResetEmail(auth, e);
+      setSuccessMsg("Lien envoyé ! Vérifie tes spams.");
+      setError("");
+    } catch (err) {
+      console.error("Reset pwd error:", err);
+      if (err.code === "auth/user-not-found") {
+        setError("Aucun compte trouvé avec cet email.");
+      } else if (err.code === "auth/invalid-email") {
+        setError("Email invalide.");
+      } else {
+        setError("Erreur : " + err.message);
+      }
     }
   };
 

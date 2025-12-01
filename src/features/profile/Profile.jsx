@@ -54,7 +54,11 @@ export default function Profile({ user, logout, db, uid, auth }) {
       setPwdMsg("Mot de passe mis à jour !");
       setNewPwd("");
     } catch (e) {
-      setPwdError("Reconnecte-toi pour modifier le mot de passe.");
+      console.error(e);
+      // CORRECTION : Message explicite pour la sécurité
+      setPwdError(
+        "Sécurité : Déconnecte-toi et reconnecte-toi pour changer ton mot de passe."
+      );
     }
   };
 
