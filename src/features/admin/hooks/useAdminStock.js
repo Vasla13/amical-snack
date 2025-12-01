@@ -52,7 +52,7 @@ export function useAdminStock(db, products) {
   };
 
   const handleDeleteProduct = async (id) => {
-    if (!confirm("Supprimer ce produit définitivement ?")) return;
+    // La confirmation est maintenant gérée par le composant UI (Modal)
     try {
       await deleteDoc(doc(db, "products", id));
     } catch (err) {

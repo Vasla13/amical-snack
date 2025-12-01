@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useState } from "react";
 import { Search, PackageX, PackageCheck, Trash2, Plus } from "lucide-react";
-import { useAdminStock } from "../hooks/useAdminStock.js"; // Import du hook
+import { useAdminStock } from "../hooks/useAdminStock.js";
+import Modal from "../../../ui/Modal.jsx"; // Import Modal
 
 export default function AdminStockTab({ db, products }) {
   const {
@@ -11,12 +12,41 @@ export default function AdminStockTab({ db, products }) {
     stockList,
     toggleAvailability,
     handleAddProduct,
-    handleDeleteProduct,
+    handleDeleteProduct, // Cette fonction du hook fait le delete direct
   } = useAdminStock(db, products);
+
+  // État pour la confirmation de suppression
+  const [productToDelete, setProductToDelete] = useState(null);
+
+  const requestDelete = (p) => {
+    setProductToDelete(p);
+  };
+
+  const confirmDelete = async () => {
+    if (productToDelete) {
+      await handleDeleteProduct(productToDelete.id); // On appelle la logique du hook
+      setProductToDelete(null);
+    }
+  };
 
   return (
     <div className="space-y-4">
-      {/* FORMULAIRE AJOUT */}
+      {/* Modale de confirmation suppression */}
+      <Modal
+        isOpen={!!productToDelete}
+        title="Supprimer ce produit ?"
+        onCancel={() => setProductToDelete(null)}
+        onConfirm={confirmDelete}
+        confirmText="Oui, supprimer"
+        cancelText="Annuler"
+      >
+        <p className="text-center text-slate-600">
+          Voulez-vous vraiment supprimer définitivement{" "}
+          <b>{productToDelete?.name}</b> ?
+        </p>
+      </Modal>
+
+      {/* FORMULAIRE AJOUT (inchangé) */}
       <form
         onSubmit={handleAddProduct}
         className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 space-y-3"
@@ -144,7 +174,7 @@ export default function AdminStockTab({ db, products }) {
                 />
               </div>
               <button
-                onClick={() => handleDeleteProduct(p.id)}
+                onClick={() => requestDelete(p)} // Appel modifié
                 className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors active:scale-90"
               >
                 <Trash2 size={18} />

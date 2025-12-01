@@ -12,25 +12,31 @@ import {
 import { collection, getDocs, deleteDoc, addDoc } from "firebase/firestore";
 import { SEED_PRODUCTS } from "../../data/seedProducts.js";
 import { useAdminOrders } from "./hooks/useAdminOrders.js";
-import AdminOrdersTab from "./tabs/AdminOrdersTab.jsx"; // C'est ici qu'on appelle l'autre fichier
+import AdminOrdersTab from "./tabs/AdminOrdersTab.jsx";
 import AdminHistoryTab from "./tabs/AdminHistoryTab.jsx";
 import AdminStockTab from "./tabs/AdminStockTab.jsx";
 import AdminStatsTab from "./tabs/AdminStatsTab.jsx";
+import Modal from "../../ui/Modal.jsx"; // 1. Import Modal
 
 export default function AdminDashboard({ db, products, onLogout }) {
   const [adminTab, setAdminTab] = useState("orders");
   const [feedback, setFeedback] = useState(null);
+
+  // 2. État pour la modale de reset
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+
   const { orders, loading, error, ORDER_TTL_MS } = useAdminOrders(db);
 
   if (error && !feedback) setFeedback({ type: "error", msg: error });
 
-  const seed = async () => {
-    if (
-      !confirm(
-        "Attention : Cela va supprimer tous les produits et remettre ceux par défaut. Continuer ?"
-      )
-    )
-      return;
+  // 3. Fonction déclenchée par le bouton "Reset"
+  const requestSeed = () => {
+    setIsResetModalOpen(true);
+  };
+
+  // 4. Fonction exécutée après confirmation
+  const confirmSeed = async () => {
+    setIsResetModalOpen(false);
     try {
       const snap = await getDocs(collection(db, "products"));
       await Promise.all(snap.docs.map((d) => deleteDoc(d.ref)));
@@ -40,9 +46,9 @@ export default function AdminDashboard({ db, products, onLogout }) {
           is_available: true,
         });
       }
-      alert("Stock réinitialisé avec succès !");
+      setFeedback({ type: "success", msg: "Stock réinitialisé avec succès !" });
     } catch (e) {
-      alert("Erreur seed: " + e.message);
+      setFeedback({ type: "error", msg: "Erreur seed: " + e.message });
     }
   };
 
@@ -61,6 +67,21 @@ export default function AdminDashboard({ db, products, onLogout }) {
 
   return (
     <div className="flex flex-col h-full bg-slate-50">
+      {/* 5. Intégration de la Modale */}
+      <Modal
+        isOpen={isResetModalOpen}
+        title="Réinitialiser le stock ?"
+        onCancel={() => setIsResetModalOpen(false)}
+        onConfirm={confirmSeed}
+        confirmText="Oui, réinitialiser"
+        cancelText="Annuler"
+      >
+        <p className="text-center text-slate-600">
+          Attention : Cela va <b>supprimer tous les produits actuels</b> et
+          remettre ceux par défaut. Cette action est irréversible.
+        </p>
+      </Modal>
+
       {/* HEADER */}
       <header className="px-4 py-4 bg-white border-b border-slate-200 flex justify-between items-center sticky top-0 z-20 shadow-sm">
         <div>
@@ -73,7 +94,7 @@ export default function AdminDashboard({ db, products, onLogout }) {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={seed}
+            onClick={requestSeed} // Appel de la modale
             className="p-2 rounded-xl bg-slate-100 text-slate-500 hover:bg-red-50 hover:text-red-500 transition-colors"
             title="Reset Stock"
           >

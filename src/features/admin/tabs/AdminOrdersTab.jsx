@@ -2,7 +2,8 @@ import React, { useState } from "react";
 import { updateDoc, doc, serverTimestamp, getDoc } from "firebase/firestore";
 import { Camera, QrCode, Package } from "lucide-react";
 import ScannerModal from "../components/ScannerModal.jsx";
-import AdminOrderCard from "../components/AdminOrderCard.jsx"; // IMPORT
+import AdminOrderCard from "../components/AdminOrderCard.jsx";
+import Modal from "../../../ui/Modal.jsx"; // Import Modal
 import { isExpired } from "../utils/orders.js";
 
 export default function AdminOrdersTab({
@@ -15,20 +16,23 @@ export default function AdminOrdersTab({
   const [scanInput, setScanInput] = useState("");
   const [scannerOpen, setScannerOpen] = useState(false);
 
+  // État pour la confirmation espèces
+  const [cashOrder, setCashOrder] = useState(null);
+
   const activeOrders = orders.filter((o) =>
     ["created", "scanned", "cash", "paid", "reward_pending"].includes(o.status)
   );
 
   const cleanToken = (input) => {
+    /* ... (code inchangé) ... */
     if (!input) return "";
     const val = String(input).trim();
-    if (val.includes("/")) {
-      return val.split("/").pop().toUpperCase();
-    }
+    if (val.includes("/")) return val.split("/").pop().toUpperCase();
     return val.toUpperCase();
   };
 
   const handleValidate = async () => {
+    /* ... (code inchangé) ... */
     setFeedback(null);
     const token = cleanToken(scanInput);
     if (!token) return;
@@ -78,8 +82,17 @@ export default function AdminOrdersTab({
     }
   };
 
-  const confirmCash = async (o) => {
-    if (!confirm("Confirmer la réception des espèces ?")) return;
+  // 1. Déclenché au clic sur "ENCAISSER"
+  const requestCashConfirm = (order) => {
+    setCashOrder(order);
+  };
+
+  // 2. Action réelle
+  const confirmCash = async () => {
+    const o = cashOrder;
+    setCashOrder(null); // Fermer la modale
+    if (!o) return;
+
     try {
       await updateDoc(doc(db, "orders", o.id), {
         status: "paid",
@@ -102,6 +115,7 @@ export default function AdminOrdersTab({
   };
 
   const handleServe = async (orderId) => {
+    /* ... (code inchangé) ... */
     try {
       await updateDoc(doc(db, "orders", orderId), {
         status: "served",
@@ -121,7 +135,23 @@ export default function AdminOrdersTab({
         onScan={(t) => t && setScanInput(cleanToken(t))}
       />
 
+      {/* Modale de confirmation espèces */}
+      <Modal
+        isOpen={!!cashOrder}
+        title="Confirmer le paiement ?"
+        onCancel={() => setCashOrder(null)}
+        onConfirm={confirmCash}
+        confirmText="Valider l'encaissement"
+        cancelText="Annuler"
+      >
+        <p className="text-center">
+          Avez-vous bien reçu les espèces pour la commande{" "}
+          <b>#{cashOrder?.qr_token}</b> ?
+        </p>
+      </Modal>
+
       <div className="bg-white p-2 rounded-2xl shadow-lg shadow-slate-200 border border-slate-100 flex gap-2 sticky top-0 z-10">
+        {/* ... (Barre de scan inchangée) ... */}
         <button
           onClick={() => setScannerOpen(true)}
           className="bg-slate-900 text-white w-14 rounded-xl flex items-center justify-center shadow-md active:scale-95 transition-transform"
@@ -167,7 +197,7 @@ export default function AdminOrdersTab({
             <AdminOrderCard
               key={o.id}
               order={o}
-              onConfirmCash={confirmCash}
+              onConfirmCash={() => requestCashConfirm(o)} // Appel modifié
               onServe={handleServe}
             />
           ))}
