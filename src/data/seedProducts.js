@@ -10,7 +10,7 @@ export const SEED_PRODUCTS = [
     name: "Chocolat chaud",
     price_cents: 50,
     category: "Boissons Chaudes",
-    image: "/produits/chocolat.png", // Pensez à ajouter l'image
+    image: "/produits/chocolat.png",
   },
 
   // BOISSONS FRAICHES
@@ -30,13 +30,13 @@ export const SEED_PRODUCTS = [
     name: "Fanta",
     price_cents: 100,
     category: "Boissons",
-    image: "/produits/fanta.png", // Pensez à ajouter l'image
+    image: "/produits/fanta.png",
   },
   {
     name: "Eau",
     price_cents: 100,
     category: "Boissons",
-    image: "/produits/eau.png", // Pensez à ajouter l'image
+    image: "/produits/eau.png",
   },
   {
     name: "Oasis",
@@ -54,7 +54,7 @@ export const SEED_PRODUCTS = [
     name: "Limonade",
     price_cents: 100,
     category: "Boissons",
-    image: "/produits/limonade.png", // Pensez à ajouter l'image
+    image: "/produits/limonade.png",
   },
   {
     name: "Redbull",
@@ -68,7 +68,7 @@ export const SEED_PRODUCTS = [
     name: "Chips",
     price_cents: 100,
     category: "Snacks",
-    image: "/produits/lays-nature.png", // J'ai mis Lay's par défaut
+    image: "/produits/lays-nature.png",
   },
   {
     name: "Bueno",
@@ -86,13 +86,13 @@ export const SEED_PRODUCTS = [
     name: "Oreo",
     price_cents: 100,
     category: "Snacks",
-    image: "/produits/oreo.png", // Pensez à ajouter l'image
+    image: "/produits/oreo.png",
   },
   {
     name: "Gauffre",
     price_cents: 100,
     category: "Snacks",
-    image: "/produits/gauffre.png", // Pensez à ajouter l'image
+    image: "/produits/gauffre.png",
   },
   {
     name: "Twix",
@@ -104,7 +104,7 @@ export const SEED_PRODUCTS = [
     name: "Granola",
     price_cents: 100,
     category: "Snacks",
-    image: "/produits/granola.png", // Pensez à ajouter l'image
+    image: "/produits/granola.png",
   },
 
   // FORMULES
@@ -112,6 +112,6 @@ export const SEED_PRODUCTS = [
     name: "Formule",
     price_cents: 120,
     category: "Formules",
-    image: "/logo.png", // J'ai mis le logo par défaut
+    image: "/produits/formule.png", 
   },
 ];
