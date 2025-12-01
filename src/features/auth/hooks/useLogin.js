@@ -28,7 +28,7 @@ export function useLogin() {
     const mail = email.trim();
 
     if (!UHA_KV_RQ.test(mail) && mail !== ADMIN_EMAIL) {
-      return setError("Utilise ton adresse universitaire (@uha.fr)");
+      return setError("Veuillez utiliser une adresse universitaire (@uha.fr).");
     }
 
     try {
@@ -43,9 +43,13 @@ export function useLogin() {
     } catch (err) {
       console.error(err);
       if (err?.code === "auth/quota-exceeded") {
-        setError("Quota email journalier atteint. Réessaie demain.");
+        setError(
+          "Limite d'envoi atteinte. Veuillez réessayer demain ou contacter un administrateur."
+        );
       } else {
-        setError("Impossible d'envoyer le lien. Vérifie ton email.");
+        setError(
+          "Impossible d'envoyer le lien. Veuillez vérifier votre adresse email."
+        );
       }
     } finally {
       setLoading(false);
@@ -55,7 +59,8 @@ export function useLogin() {
   const handleLogin = async (e) => {
     e?.preventDefault();
     clean();
-    if (!email || !password) return setError("Remplis tous les champs.");
+    if (!email || !password)
+      return setError("Veuillez remplir tous les champs.");
 
     try {
       setLoading(true);
@@ -69,7 +74,7 @@ export function useLogin() {
 
   const handleForgot = async () => {
     const mail = email.trim();
-    if (!mail) return setError("Entre ton email dans le champ ci-dessus.");
+    if (!mail) return setError("Veuillez saisir votre email ci-dessus.");
 
     try {
       setLoading(true);
@@ -78,11 +83,13 @@ export function useLogin() {
         handleCodeInApp: true,
       };
       await sendPasswordResetEmail(auth, mail, actionCodeSettings);
-      setSuccessMsg("Lien envoyé ! Vérifie tes spams.");
+      setSuccessMsg(
+        "Lien de réinitialisation envoyé. Vérifiez vos courriers indésirables."
+      );
       setError("");
     } catch (err) {
       if (err.code === "auth/user-not-found") {
-        setError("Aucun compte trouvé avec cet email.");
+        setError("Aucun compte associé à cette adresse email.");
       } else {
         setError("Erreur : " + err.message);
       }
