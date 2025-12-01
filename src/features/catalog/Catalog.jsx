@@ -1,13 +1,13 @@
 import React from "react";
-import { Search, Heart, Plus, Check } from "lucide-react";
+import { Search, Star, Plus, Check } from "lucide-react";
 import { formatPrice } from "../../lib/format.js";
 import { useCart } from "../../context/CartContext.jsx";
 import { useAuth } from "../../context/AuthContext.jsx";
 import Skeleton from "../../ui/Skeleton.jsx";
 import ProductModal from "./ProductModal.jsx";
-import { useCatalog } from "./hooks/useCatalog.js"; // Import du hook
+import { useCatalog } from "./hooks/useCatalog.js";
 
-// Composant Bouton Animé (inchangé, gardé ici pour la simplicité)
+// Composant Bouton Animé
 function AddButton({ onClick, available }) {
   const [clicked, setClicked] = React.useState(false);
 
@@ -45,7 +45,6 @@ export default function Catalog({ products }) {
   const { cart, addToCart } = useCart();
   const { user, userData, db } = useAuth();
 
-  // Utilisation du hook personnalisé
   const {
     search,
     setSearch,
@@ -61,34 +60,38 @@ export default function Catalog({ products }) {
   } = useCatalog(products, user, userData, db);
 
   return (
-    <div className="px-4 pb-4 min-h-full flex flex-col">
-      {/* HEADER RECHERCHE */}
-      <div className="sticky top-0 z-40 bg-slate-50/95 dark:bg-slate-950/95 backdrop-blur pt-2 pb-1 transition-colors">
-        <div className="relative mb-4 shadow-sm group">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5 transition-colors group-focus-within:text-teal-500" />
-          <input
-            className="w-full pl-11 pr-4 py-3.5 bg-white dark:bg-slate-900 rounded-2xl border border-transparent focus:border-teal-500 outline-none transition-all font-medium text-slate-700 dark:text-slate-200 placeholder:text-slate-400"
-            placeholder="Rechercher..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+    <div className="px-4 pb-4 min-h-full flex flex-col pt-2">
+      {/* HEADER RECHERCHE & FILTRES */}
+      <div className="sticky top-2 z-40 mb-6 space-y-3">
+        {/* Barre de recherche flottante */}
+        <div className="relative shadow-lg shadow-slate-200/40 dark:shadow-none rounded-2xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border border-white/50 dark:border-slate-800 transition-all">
+          <div className="flex items-center px-4 py-3.5">
+            <Search className="text-slate-400 w-5 h-5 mr-3" />
+            <input
+              className="w-full bg-transparent outline-none font-bold text-slate-700 dark:text-slate-200 placeholder:text-slate-400 text-sm"
+              placeholder="Rechercher un snack..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
         </div>
 
-        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2">
+        {/* Catégories */}
+        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 px-1">
           {categories.map((cat) => (
             <button
               key={cat}
               onClick={() => setSelectedCategory(cat)}
-              className={`whitespace-nowrap px-5 py-2 rounded-xl text-sm font-bold transition-all active:scale-95 ${
+              className={`whitespace-nowrap px-4 py-2 rounded-xl text-xs font-bold transition-all active:scale-95 border ${
                 selectedCategory === cat
-                  ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-md"
-                  : "bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 border border-slate-100 dark:border-slate-800"
+                  ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900 border-slate-900 dark:border-white shadow-md"
+                  : "bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 border-slate-100 dark:border-slate-800 shadow-sm"
               }`}
             >
               {cat === "Favoris" && (
-                <Heart
+                <Star
                   size={12}
-                  className="inline mr-1 mb-0.5"
+                  className="inline mr-1.5 mb-0.5 text-yellow-400"
                   fill="currentColor"
                 />
               )}
@@ -99,7 +102,7 @@ export default function Catalog({ products }) {
       </div>
 
       {/* GRILLE PRODUITS */}
-      <div className="grid grid-cols-2 gap-4 mt-2 pb-24">
+      <div className="grid grid-cols-2 gap-4 pb-24">
         {loading
           ? Array.from({ length: 6 }).map((_, i) => (
               <div
@@ -137,17 +140,18 @@ export default function Catalog({ products }) {
                     </div>
                   )}
 
+                  {/* ÉTOILE FAVORIS */}
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       toggleFavorite(p);
                     }}
-                    className="absolute top-3 left-3 z-30 p-1.5 bg-white/80 dark:bg-black/30 backdrop-blur rounded-full text-slate-400 hover:text-rose-500 transition-colors"
+                    className="absolute top-3 left-3 z-30 p-2 bg-white/60 dark:bg-black/30 backdrop-blur-md rounded-full text-slate-300 hover:text-yellow-400 transition-colors active:scale-90"
                   >
-                    <Heart
-                      size={14}
-                      fill={isFav ? "#f43f5e" : "none"}
-                      className={isFav ? "text-rose-500" : ""}
+                    <Star
+                      size={16}
+                      fill={isFav ? "#facc15" : "none"}
+                      className={isFav ? "text-yellow-400" : ""}
                     />
                   </button>
 

@@ -22,28 +22,33 @@ export default function QRPanel({ token }) {
   };
 
   return (
-    <div className="p-4 border-b border-gray-100">
+    <div className="p-4 border-b border-gray-100 dark:border-slate-800 transition-colors">
       <div className="flex items-center justify-between gap-2">
-        <div className="text-xs font-black uppercase text-gray-400">
+        <div className="text-xs font-black uppercase text-gray-400 dark:text-gray-500">
           QR Code
         </div>
         <button
           onClick={copyCode}
-          className="px-3 py-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 font-black text-xs flex items-center gap-2"
+          className="px-3 py-2 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-gray-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-black text-xs flex items-center gap-2 transition-colors"
           aria-label="Copier le code"
         >
           <Copy size={16} /> Copier
         </button>
       </div>
 
-      <div className="mt-2 bg-gray-50 border border-gray-100 rounded-2xl p-4 flex items-center justify-center">
+      {/* Conteneur QR adapté au Dark Mode */}
+      <div className="mt-3 bg-gray-50 dark:bg-slate-800 border border-gray-100 dark:border-slate-700 rounded-2xl p-4 flex items-center justify-center transition-colors">
+        {/* Le fond du QR reste blanc pour la lisibilité du scan, mais le cadre s'adapte */}
         <div className="bg-white p-3 rounded-2xl border border-gray-200 shadow-sm">
           <QRCodeCanvas value={qrValue} size={210} includeMargin />
         </div>
       </div>
 
-      <div className="mt-2 text-xs text-gray-500">
-        Montre ce QR au vendeur (ou donne le code : <b>{token}</b>)
+      <div className="mt-3 text-center text-xs text-gray-500 dark:text-slate-400">
+        Présente ce code au bar ou donne le numéro : <br />
+        <span className="font-mono font-black text-lg text-slate-800 dark:text-white select-all">
+          {token}
+        </span>
       </div>
     </div>
   );

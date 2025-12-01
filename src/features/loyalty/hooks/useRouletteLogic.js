@@ -43,7 +43,7 @@ function nextFrame() {
   return new Promise((r) => requestAnimationFrame(() => r()));
 }
 
-// Le Hook Principal (C'est ici que sont parties tes 300 lignes !)
+// Le Hook Principal
 export function useRouletteLogic({ user, products, db, notify }) {
   const [gameState, setGameState] = useState("idle");
   const [strip, setStrip] = useState([]);
@@ -53,7 +53,6 @@ export function useRouletteLogic({ user, products, db, notify }) {
   const animationRef = useRef(null);
   const mountedRef = useRef(false);
 
-  // Filtrer les produits disponibles
   const availableProducts = useMemo(
     () => (products || []).filter((p) => p && p.id && p.is_available !== false),
     [products]
@@ -72,7 +71,6 @@ export function useRouletteLogic({ user, products, db, notify }) {
     };
   }, []);
 
-  // Initialisation de la bande visuelle (au repos)
   useEffect(() => {
     if (availableProducts.length > 0 && strip.length === 0) {
       setStrip(
@@ -83,9 +81,7 @@ export function useRouletteLogic({ user, products, db, notify }) {
     }
   }, [availableProducts.length]);
 
-  // Fonction pour lancer le jeu
   const spin = async (onSuccess) => {
-    // Vérifications de sécurité
     if (!user?.uid) return notify?.("Utilisateur non connecté", "error");
     if (!db) return notify?.("Database non disponible", "error");
     if (!canPlay) return;
@@ -93,27 +89,22 @@ export function useRouletteLogic({ user, products, db, notify }) {
     if (normalizePoints(user?.points) < COST)
       return notify?.("Points insuffisants !", "error");
 
-    // Choix du gagnant (Le Destin)
     const winnerItem = getRandomWeightedItem(availableProducts);
     if (!winnerItem) return notify?.("Stock vide !", "error");
     winnerRef.current = winnerItem;
 
-    // Préparer la bande longue pour l'animation
     const gameStrip = Array.from({ length: TOTAL_ITEMS }, () =>
       getRandomWeightedItem(availableProducts)
     );
-    // On force l'item gagnant à la position d'arrêt
     gameStrip[WINNER_INDEX] = winnerItem;
 
     setStrip(gameStrip);
     setGameState("spinning");
 
-    // Attendre que le DOM se mette à jour
     await nextFrame();
     await nextFrame();
     if (!mountedRef.current) return;
 
-    // Calculs de géométrie pour l'animation
     const el = stripRef.current;
     const cont = containerRef.current;
     if (!el || !cont) {
@@ -121,20 +112,16 @@ export function useRouletteLogic({ user, products, db, notify }) {
       return;
     }
 
-    // Reset position départ
     el.style.transition = "none";
     el.style.transform = "translate3d(0px,0px,0px)";
     await nextFrame();
 
-    // Calcul de la position finale exacte (centrée)
     const containerWidth = cont.clientWidth || 0;
     const offset = containerWidth / 2 - ITEM_WIDTH / 2;
     const targetLeft = WINNER_INDEX * (ITEM_WIDTH + GAP);
-    // Petit décalage aléatoire pour le réalisme (ne tombe pas pile au pixel près)
     const randomShift = Math.floor(Math.random() * 24) - 12;
     const finalX = -(targetLeft - offset + randomShift);
 
-    // Lancer l'animation (Web Animations API)
     if (typeof el.animate === "function") {
       const anim = el.animate(
         [
@@ -147,10 +134,9 @@ export function useRouletteLogic({ user, products, db, notify }) {
       try {
         await anim.finished;
       } catch {
-        return; // Animation annulée (ex: changement de page)
+        return;
       }
     } else {
-      // Fallback CSS
       el.style.transition = `transform ${SPIN_SECONDS}s ${EASING}`;
       el.style.transform = `translate3d(${finalX}px,0,0)`;
       await new Promise((r) => setTimeout(r, SPIN_SECONDS * 1000));
@@ -158,7 +144,6 @@ export function useRouletteLogic({ user, products, db, notify }) {
 
     if (!mountedRef.current) return;
 
-    // Transaction Base de Données (Débit points + Création lot)
     setGameState("saving");
     try {
       await runTransaction(db, async (tx) => {
@@ -171,13 +156,11 @@ export function useRouletteLogic({ user, products, db, notify }) {
         const pts = normalizePoints(snap.data()?.points);
         if (pts < COST) throw new Error("POINTS_LOW");
 
-        // 1. Débiter les points
         tx.update(userRef, {
           points: pts - COST,
           lastUpdated: serverTimestamp(),
         });
 
-        // 2. Créer le ticket gagnant
         tx.set(orderRef, {
           user_id: user.uid,
           items: [{ ...winnerItem, qty: 1, price_cents: 0 }],
@@ -190,13 +173,21 @@ export function useRouletteLogic({ user, products, db, notify }) {
         });
       });
 
-      // Succès !
       setGameState("won");
+
+      // --- OPTIMISATION CONFETTI ---
+      // Réduction drastique du nombre de particules (100 -> 40)
+      // Désactivation de la physique pour éviter les calculs lourds (scalar réduit)
       confetti({
-        particleCount: 100,
-        spread: 70,
+        particleCount: 40,
+        spread: 60,
         origin: { y: 0.6 },
+        disableForReducedMotion: true, // Respecte les préférences système
+        scalar: 0.8, // Particules un peu plus petites
+        drift: 0,
+        ticks: 200, // Durée de vie plus courte
       });
+
       if (onSuccess) onSuccess(winnerItem);
     } catch (err) {
       setGameState("idle");
@@ -209,7 +200,6 @@ export function useRouletteLogic({ user, products, db, notify }) {
     }
   };
 
-  // On retourne tout ce dont l'interface a besoin
   return {
     gameState,
     strip,

@@ -50,19 +50,22 @@ export default function ProfileSettings({ auth, logout }) {
               className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-teal-500 transition-colors"
               size={18}
             />
+            {/* Ajout d'une bordure (border-slate-200) pour mieux voir le champ */}
             <input
               type="password"
               placeholder="Nouveau mot de passe"
-              className="w-full pl-11 pr-4 py-3 bg-slate-50 dark:bg-slate-800 rounded-xl text-sm font-bold border border-transparent focus:bg-white dark:focus:bg-slate-900 focus:border-teal-500 outline-none transition-all placeholder:text-slate-400 text-slate-800 dark:text-white"
+              className="w-full pl-11 pr-4 py-3.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-sm font-bold border border-slate-200 dark:border-slate-700 focus:bg-white dark:focus:bg-slate-900 focus:border-teal-500 outline-none transition-all placeholder:text-slate-400 text-slate-800 dark:text-white"
               value={newPwd}
               onChange={(e) => setNewPwd(e.target.value)}
             />
           </div>
+
+          {/* CORRECTION ICI : Style explicite pour rendre le bouton visible sans survol */}
           <Button
             onClick={changePasswordAction}
-            className="w-full py-3 text-xs shadow-none border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50"
+            className="w-full py-3.5 text-xs font-black shadow-lg bg-slate-900 text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
           >
-            Mettre à jour
+            METTRE À JOUR
           </Button>
 
           {pwdMsg && (
