@@ -1,22 +1,22 @@
-import React, { useMemo, useState, useEffect } from "react";
-import { Search, Plus, Heart, Check } from "lucide-react";
+import React from "react";
+import { Search, Heart, Plus, Check } from "lucide-react";
 import { formatPrice } from "../../lib/format.js";
 import { useCart } from "../../context/CartContext.jsx";
 import { useAuth } from "../../context/AuthContext.jsx";
 import Skeleton from "../../ui/Skeleton.jsx";
 import ProductModal from "./ProductModal.jsx";
-import { doc, updateDoc, arrayUnion, arrayRemove } from "firebase/firestore";
+import { useCatalog } from "./hooks/useCatalog.js"; // Import du hook
 
-// AJOUT : Composant Bouton Animé
+// Composant Bouton Animé (inchangé, gardé ici pour la simplicité)
 function AddButton({ onClick, available }) {
-  const [clicked, setClicked] = useState(false);
+  const [clicked, setClicked] = React.useState(false);
 
   const handleClick = (e) => {
     e.stopPropagation();
     if (!available) return;
     setClicked(true);
     onClick();
-    setTimeout(() => setClicked(false), 500); // 500ms d'animation
+    setTimeout(() => setClicked(false), 500);
   };
 
   return (
@@ -43,59 +43,26 @@ function AddButton({ onClick, available }) {
 
 export default function Catalog({ products }) {
   const { cart, addToCart } = useCart();
-  const { user, userData, db } = useAuth(); // db est maintenant défini !
-  const [search, setSearch] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("Tout");
-  const [loading, setLoading] = useState(true);
-  const [selectedProduct, setSelectedProduct] = useState(null);
+  const { user, userData, db } = useAuth();
 
-  useEffect(() => {
-    if (products.length > 0) setTimeout(() => setLoading(false), 800);
-  }, [products]);
-
-  const categories = useMemo(() => {
-    const cats = new Set(
-      (products || []).map((p) => p.category).filter(Boolean)
-    );
-    return ["Tout", "Favoris", ...Array.from(cats)];
-  }, [products]);
-
-  const favorites = useMemo(() => userData?.favorites || [], [userData]);
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return (products || []).filter((p) => {
-      const matchSearch = !q || (p.name || "").toLowerCase().includes(q);
-      let matchCat = true;
-      if (selectedCategory === "Favoris") {
-        matchCat = favorites.includes(p.id);
-      } else if (selectedCategory !== "Tout") {
-        matchCat = p.category === selectedCategory;
-      }
-      return matchSearch && matchCat;
-    });
-  }, [products, search, selectedCategory, favorites]);
-
-  const toggleFavorite = async (product) => {
-    if (!user) return;
-    if (!db) {
-      console.error("Database connection not found");
-      return;
-    }
-    const ref = doc(db, "users", user.uid);
-    const isFav = favorites.includes(product.id);
-    try {
-      await updateDoc(ref, {
-        favorites: isFav ? arrayRemove(product.id) : arrayUnion(product.id),
-      });
-    } catch (e) {
-      console.error("Erreur fav:", e);
-    }
-  };
+  // Utilisation du hook personnalisé
+  const {
+    search,
+    setSearch,
+    selectedCategory,
+    setSelectedCategory,
+    loading,
+    selectedProduct,
+    setSelectedProduct,
+    categories,
+    favorites,
+    filteredProducts,
+    toggleFavorite,
+  } = useCatalog(products, user, userData, db);
 
   return (
     <div className="px-4 pb-4 min-h-full flex flex-col">
-      {/* HEADER RECHERCHE : z-40 pour être au-dessus des cœurs (z-30) */}
+      {/* HEADER RECHERCHE */}
       <div className="sticky top-0 z-40 bg-slate-50/95 dark:bg-slate-950/95 backdrop-blur pt-2 pb-1 transition-colors">
         <div className="relative mb-4 shadow-sm group">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5 transition-colors group-focus-within:text-teal-500" />
@@ -131,6 +98,7 @@ export default function Catalog({ products }) {
         </div>
       </div>
 
+      {/* GRILLE PRODUITS */}
       <div className="grid grid-cols-2 gap-4 mt-2 pb-24">
         {loading
           ? Array.from({ length: 6 }).map((_, i) => (
@@ -146,7 +114,7 @@ export default function Catalog({ products }) {
                 </div>
               </div>
             ))
-          : filtered.map((p) => {
+          : filteredProducts.map((p) => {
               const qty = cart.find((i) => i.id === p.id)?.qty || 0;
               const available = p.is_available !== false;
               const isFav = favorites.includes(p.id);
@@ -169,7 +137,6 @@ export default function Catalog({ products }) {
                     </div>
                   )}
 
-                  {/* COEUR : z-30 pour être cliquable mais sous le header (z-40) */}
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -207,7 +174,6 @@ export default function Catalog({ products }) {
                       <span className="font-black text-lg text-slate-700 dark:text-slate-300">
                         {formatPrice(p.price_cents)}
                       </span>
-                      {/* Utilisation du bouton animé */}
                       <AddButton
                         available={available}
                         onClick={() => addToCart(p)}
@@ -232,7 +198,7 @@ export default function Catalog({ products }) {
         allProducts={products}
       />
 
-      {!loading && filtered.length === 0 && (
+      {!loading && filteredProducts.length === 0 && (
         <div className="flex-1 flex flex-col items-center justify-center py-12 text-slate-400">
           <Search size={32} className="mb-2 opacity-20" />
           <p className="font-medium text-sm">Rien trouvé ici...</p>
