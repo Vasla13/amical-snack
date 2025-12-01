@@ -1,40 +1,13 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { collection, onSnapshot } from "firebase/firestore";
-import { updatePassword } from "firebase/auth";
-import {
-  User,
-  LogOut,
-  Trophy,
-  KeyRound,
-  Medal,
-  Settings,
-  CreditCard,
-  ShieldCheck,
-  BellRing,
-} from "lucide-react";
+import { User, Trophy, Medal, Settings, CreditCard } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import NotificationButton from "./NotificationButton";
-import Button from "../../ui/Button";
-
-const getInitials = (name) => {
-  return name
-    ? name
-        .split(" ")
-        .map((n) => n[0])
-        .join("")
-        .toUpperCase()
-        .slice(0, 2)
-    : "?";
-};
+import ProfileLeaderboard from "./tabs/ProfileLeaderboard";
+import ProfileSettings from "./tabs/ProfileSettings";
 
 export default function Profile({ user, logout, db, uid, auth }) {
   const [users, setUsers] = useState([]);
   const [activeTab, setActiveTab] = useState("stats");
-
-  const [newPwd, setNewPwd] = useState("");
-  const [pwdMsg, setPwdMsg] = useState(null);
-  const [pwdError, setPwdError] = useState(null);
-  const [timeframe, setTimeframe] = useState("all");
 
   useEffect(() => {
     if (!db) return;
@@ -43,48 +16,6 @@ export default function Profile({ user, logout, db, uid, auth }) {
     });
   }, [db]);
 
-  const changePasswordAction = async () => {
-    setPwdMsg(null);
-    setPwdError(null);
-    if (newPwd.length < 6) return setPwdError("6 caractères minimum.");
-
-    try {
-      if (!auth.currentUser) return;
-
-      await updatePassword(auth.currentUser, newPwd);
-
-      setPwdMsg("Mot de passe mis à jour !");
-      setNewPwd("");
-    } catch (e) {
-      console.error(e);
-      // GESTION SPÉCIFIQUE DE L'ERREUR : requires-recent-login
-      if (e.code === "auth/requires-recent-login") {
-        setPwdError(
-          "Sécurité : Pour changer le mot de passe, déconnecte-toi et reconnecte-toi, puis réessaie immédiatement."
-        );
-      } else {
-        setPwdError("Erreur : " + e.message);
-      }
-    }
-  };
-
-  const leaderboard = useMemo(() => {
-    const currentMonthKey = new Date().toISOString().slice(0, 7);
-    const list = (users || [])
-      .filter((u) => !!u.email && u.role !== "admin")
-      .map((u) => ({
-        id: u.id,
-        name: u.displayName || u.email.split("@")[0],
-        points:
-          timeframe === "month"
-            ? u.points_history?.[currentMonthKey] || 0
-            : Number(u.points || 0),
-      }));
-    list.sort((a, b) => b.points - a.points);
-    return list;
-  }, [users, timeframe]);
-
-  const top10 = leaderboard.slice(0, 10);
   const fmtPoints = (p) =>
     Number(p || 0)
       .toFixed(2)
@@ -129,6 +60,7 @@ export default function Profile({ user, logout, db, uid, auth }) {
         animate={{ opacity: 1, y: 0 }}
         className="relative z-10 max-w-md mx-auto space-y-8"
       >
+        {/* Header */}
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-black text-slate-800 dark:text-white tracking-tight">
@@ -147,6 +79,7 @@ export default function Profile({ user, logout, db, uid, auth }) {
           </div>
         </div>
 
+        {/* Card Points */}
         <div className="group relative w-full aspect-[1.586/1] rounded-[24px] transition-all duration-500 hover:scale-[1.02]">
           <div className="absolute inset-0 bg-slate-900 rounded-[24px] overflow-hidden shadow-2xl shadow-slate-900/30 border border-slate-700">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_-20%,_#334155,_#0f172a)]" />
@@ -202,6 +135,7 @@ export default function Profile({ user, logout, db, uid, auth }) {
           </div>
         </div>
 
+        {/* Onglets */}
         <div className="bg-white dark:bg-slate-900 p-1.5 rounded-2xl border border-slate-200/60 dark:border-slate-800 shadow-sm flex gap-1 relative z-20">
           {[
             { id: "stats", label: "Succès", icon: Medal },
@@ -223,6 +157,7 @@ export default function Profile({ user, logout, db, uid, auth }) {
           ))}
         </div>
 
+        {/* Contenu Onglets */}
         <AnimatePresence mode="wait">
           {activeTab === "stats" && (
             <motion.div
@@ -265,90 +200,8 @@ export default function Profile({ user, logout, db, uid, auth }) {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden"
             >
-              <div className="p-4 border-b border-slate-50 dark:border-slate-800 flex justify-center bg-slate-50/50 dark:bg-slate-900/50">
-                <div className="flex bg-white dark:bg-slate-800 p-1 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700">
-                  {["all", "month"].map((t) => (
-                    <button
-                      key={t}
-                      onClick={() => setTimeframe(t)}
-                      className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                        timeframe === t
-                          ? "bg-slate-900 text-white shadow"
-                          : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
-                      }`}
-                    >
-                      {t === "all" ? "Global" : "Ce mois"}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="divide-y divide-slate-50 dark:divide-slate-800">
-                {top10.map((u, i) => {
-                  const isMe = uid === u.id;
-                  let rankStyle =
-                    "bg-slate-100 dark:bg-slate-800 text-slate-500";
-                  let rowStyle = isMe
-                    ? "bg-teal-50/50 dark:bg-teal-900/20"
-                    : "hover:bg-slate-50 dark:hover:bg-slate-800/50";
-
-                  if (i === 0)
-                    rankStyle =
-                      "bg-gradient-to-br from-yellow-300 to-yellow-500 text-white shadow-yellow-200";
-                  if (i === 1)
-                    rankStyle =
-                      "bg-gradient-to-br from-slate-300 to-slate-400 text-white shadow-slate-200";
-                  if (i === 2)
-                    rankStyle =
-                      "bg-gradient-to-br from-orange-300 to-orange-400 text-white shadow-orange-200";
-
-                  return (
-                    <div
-                      key={u.id}
-                      className={`flex items-center justify-between p-4 transition-colors ${rowStyle}`}
-                    >
-                      <div className="flex items-center gap-4">
-                        <div
-                          className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-xs shadow-sm ${rankStyle}`}
-                        >
-                          {i + 1}
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-[10px] font-bold text-slate-500 dark:text-slate-400">
-                            {getInitials(u.name)}
-                          </div>
-                          <div className="flex flex-col">
-                            <span
-                              className={`text-sm font-bold ${
-                                isMe
-                                  ? "text-teal-700 dark:text-teal-400"
-                                  : "text-slate-700 dark:text-slate-200"
-                              }`}
-                            >
-                              {u.name}
-                            </span>
-                            {isMe && (
-                              <span className="text-[9px] font-bold text-teal-500 uppercase tracking-wider">
-                                C'est moi !
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="font-black text-slate-800 dark:text-slate-200 text-sm">
-                          {fmtPoints(u.points)}
-                        </div>
-                        <div className="text-[9px] font-bold text-slate-400 uppercase">
-                          pts
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+              <ProfileLeaderboard users={users} uid={uid} />
             </motion.div>
           )}
 
@@ -358,74 +211,8 @@ export default function Profile({ user, logout, db, uid, auth }) {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="space-y-6"
             >
-              <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-100 dark:border-slate-800 shadow-sm">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="p-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-slate-600 dark:text-slate-300">
-                    <ShieldCheck size={20} />
-                  </div>
-                  <h3 className="font-black text-slate-800 dark:text-white text-sm">
-                    Sécurité
-                  </h3>
-                </div>
-
-                <div className="space-y-3">
-                  <div className="relative group">
-                    <KeyRound
-                      className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-teal-500 transition-colors"
-                      size={18}
-                    />
-                    <input
-                      type="password"
-                      placeholder="Nouveau mot de passe"
-                      className="w-full pl-11 pr-4 py-3 bg-slate-50 dark:bg-slate-800 rounded-xl text-sm font-bold border border-transparent focus:bg-white dark:focus:bg-slate-900 focus:border-teal-500 outline-none transition-all placeholder:text-slate-400 text-slate-800 dark:text-white"
-                      value={newPwd}
-                      onChange={(e) => setNewPwd(e.target.value)}
-                    />
-                  </div>
-                  <Button
-                    onClick={changePasswordAction}
-                    className="w-full py-3 text-xs shadow-none border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50"
-                  >
-                    Mettre à jour
-                  </Button>
-
-                  {pwdMsg && (
-                    <div className="bg-emerald-50 text-emerald-600 p-3 rounded-xl text-xs font-bold text-center border border-emerald-100">
-                      {pwdMsg}
-                    </div>
-                  )}
-                  {pwdError && (
-                    <div className="bg-rose-50 text-rose-600 p-3 rounded-xl text-xs font-bold text-center border border-rose-100">
-                      {pwdError}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-100 dark:border-slate-800 shadow-sm">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="p-2 bg-purple-50 dark:bg-purple-900/20 rounded-xl text-purple-600">
-                    <BellRing size={20} />
-                  </div>
-                  <h3 className="font-black text-slate-800 dark:text-white text-sm">
-                    Notifications
-                  </h3>
-                </div>
-                <NotificationButton />
-              </div>
-
-              <button
-                onClick={logout}
-                className="w-full py-4 text-rose-500 font-bold bg-white dark:bg-slate-900 border border-rose-100 dark:border-rose-900 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-95 shadow-sm group"
-              >
-                <LogOut
-                  size={18}
-                  className="group-hover:scale-110 transition-transform"
-                />
-                Se déconnecter
-              </button>
+              <ProfileSettings auth={auth} logout={logout} />
             </motion.div>
           )}
         </AnimatePresence>
