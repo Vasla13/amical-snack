@@ -40,17 +40,17 @@ export default function App() {
   const { user, userData, loading: authLoading, isAdmin } = useAuth();
   const navigate = useNavigate();
 
-  // États globaux
   const [products, setProducts] = useState([]);
   const [toast, setToast] = useState(null);
   const [modal, setModal] = useState(null);
 
-  // Gestion de la finalisation du lien magique
   const [isFinishingLogin, setIsFinishingLogin] = useState(false);
   const [emailForLink, setEmailForLink] = useState("");
   const [needsEmailConfirm, setNeedsEmailConfirm] = useState(false);
 
-  // Gestion création mot de passe
+  // Protection double exécution
+  const loginAttempted = useRef(false);
+
   const [newPassword, setNewPassword] = useState("");
   const [pwdLoading, setPwdLoading] = useState(false);
 
@@ -65,18 +65,18 @@ export default function App() {
   );
   const confirmAction = (opts) => setModal(opts);
 
-  // --- 1. GESTION DU LIEN MAGIQUE (Au chargement) ---
+  // --- 1. GESTION DU LIEN MAGIQUE ---
   useEffect(() => {
-    // Si c'est un lien de connexion email
+    // Cette fonction détecte les codes apiKey/oobCode dans l'URL
     if (isSignInWithEmailLink(auth, window.location.href)) {
-      // On récupère l'email stocké (si même navigateur)
+      if (loginAttempted.current) return;
+      loginAttempted.current = true;
+
       let email = window.localStorage.getItem("emailForSignIn");
 
       if (!email) {
-        // Si on a changé de navigateur (ex: App Mail -> Safari), on doit redemander l'email
         setNeedsEmailConfirm(true);
       } else {
-        // Sinon on finalise direct
         completeSignIn(email);
       }
     }
@@ -87,11 +87,12 @@ export default function App() {
       setIsFinishingLogin(true);
       await signInWithEmailLink(auth, email, window.location.href);
       window.localStorage.removeItem("emailForSignIn");
-      // Une fois connecté, le AuthContext prendra le relais
-      // et redirigera vers /setup si le mot de passe manque
+      notify("Connexion réussie !", "success");
+      // Important : On redirige vers l'accueil pour nettoyer l'URL
+      navigate("/");
     } catch (error) {
       console.error(error);
-      notify("Lien expiré ou invalide. Recommence.", "error");
+      notify("Lien invalide ou expiré.", "error");
       navigate("/login");
     } finally {
       setIsFinishingLogin(false);
@@ -114,8 +115,7 @@ export default function App() {
     setPwdLoading(true);
     try {
       const currentUser = auth.currentUser;
-      if (!currentUser) throw new Error("Session perdue, reconnecte-toi.");
-      if (!currentUser.email) throw new Error("Email manquant sur le compte.");
+      if (!currentUser) throw new Error("Session perdue.");
 
       const credential = EmailAuthProvider.credential(
         currentUser.email,
@@ -123,21 +123,13 @@ export default function App() {
       );
 
       try {
-        // Ajoute le provider password après la connexion par lien magique
         await linkWithCredential(currentUser, credential);
       } catch (err) {
         if (err.code === "auth/provider-already-linked") {
-          // Le provider password existe déjà : on ne fait qu'actualiser le mot de passe
           await updatePassword(currentUser, newPassword);
         } else if (err.code === "auth/requires-recent-login") {
           await auth.signOut();
-          throw new Error(
-            "Session expirée. Clique à nouveau sur le lien magique puis réessaie."
-          );
-        } else if (err.code === "auth/credential-already-in-use") {
-          throw new Error(
-            "Un compte existe déjà avec cet email. Connecte-toi puis réinitialise ton mot de passe si besoin."
-          );
+          throw new Error("Session expirée. Recommence la connexion.");
         } else {
           throw err;
         }
@@ -146,24 +138,22 @@ export default function App() {
       await updateDoc(doc(db, "users", currentUser.uid), {
         setup_complete: true,
       });
-
       notify("Compte configuré ! Bienvenue.", "success");
-      // La redirection se fera automatiquement via le ProtectedRoute car setup_complete sera true
     } catch (e) {
       console.error(e);
-      notify("Erreur: " + (e.message || "Impossible d'enregistrer."), "error");
+      notify("Erreur: " + e.message, "error");
     } finally {
       setPwdLoading(false);
     }
   };
 
-  // --- ACTIONS ---
   const handleLogout = async () => {
     await auth.signOut();
     navigate("/login");
   };
 
   const payOrder = async (method, order) => {
+    // ... (Identique à avant)
     const totalCents = Number(order.total_cents || 0);
     if (method === "paypal_balance") {
       const balance = Number(userDataRef.current?.balance_cents || 0);
@@ -195,8 +185,6 @@ export default function App() {
     notify("Vendeur notifié.", "info");
   };
 
-  // --- VUES DE CHARGEMENT / CONFIRMATION ---
-
   if (authLoading || isFinishingLogin) {
     return (
       <div className="h-screen flex items-center justify-center bg-slate-50">
@@ -205,7 +193,6 @@ export default function App() {
     );
   }
 
-  // Cas où on a changé de navigateur : on demande juste l'email pour valider le lien
   if (needsEmailConfirm) {
     return (
       <div className="h-screen flex flex-col items-center justify-center p-6 bg-white max-w-md mx-auto">
@@ -226,10 +213,14 @@ export default function App() {
     );
   }
 
-  // Routeur
   const ProtectedRoute = ({ children }) => {
     if (!user) return <Navigate to="/login" />;
-    // Si l'utilisateur est connecté mais n'a pas fini le setup (pas de mot de passe)
+    if (userData === null && !isAdmin)
+      return (
+        <div className="h-screen flex items-center justify-center">
+          Chargement...
+        </div>
+      );
     if (userData && userData.setup_complete === false)
       return <Navigate to="/setup" />;
     if (userData && userData.role === "admin") return <Navigate to="/admin" />;
@@ -264,7 +255,6 @@ export default function App() {
           path="/login"
           element={!user ? <LoginScreen /> : <Navigate to="/" />}
         />
-
         <Route
           path="/admin"
           element={
@@ -279,8 +269,6 @@ export default function App() {
             )
           }
         />
-
-        {/* PAGE DE CRÉATION DE MOT DE PASSE (APRES CLIC EMAIL) */}
         <Route
           path="/setup"
           element={
@@ -293,8 +281,7 @@ export default function App() {
                   Dernière étape !
                 </h1>
                 <p className="text-gray-500 mb-8 text-sm">
-                  Choisis un mot de passe pour te connecter plus facilement la
-                  prochaine fois.
+                  Choisis un mot de passe pour te connecter plus facilement.
                 </p>
                 <div className="w-full space-y-4">
                   <input
@@ -365,6 +352,18 @@ export default function App() {
             }
           />
         </Route>
+
+        {/* --- CORRECTION POUR LE LIEN EMAIL "CASSÉ" --- */}
+        {/* Cette route attrape l'URL bizarre de Firebase et affiche un écran d'attente pendant que le useEffect fait le travail */}
+        <Route
+          path="/auth/action"
+          element={
+            <div className="h-screen flex items-center justify-center bg-slate-50">
+              <div className="animate-spin w-10 h-10 border-4 border-teal-500 border-t-transparent rounded-full"></div>
+            </div>
+          }
+        />
+
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </>

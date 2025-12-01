@@ -17,7 +17,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function LoginScreen() {
-  const [mode, setMode] = useState("magic"); // 'magic' | 'password'
+  const [mode, setMode] = useState("magic");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -40,7 +40,8 @@ export default function LoginScreen() {
     try {
       setLoading(true);
       const actionCodeSettings = {
-        url: window.location.href, // Redirige vers la même URL (racine)
+        // CORRECTION : On force une URL propre pour éviter les bugs de redirection
+        url: window.location.origin + "/login",
         handleCodeInApp: true,
       };
       await sendSignInLinkToEmail(auth, e, actionCodeSettings);
@@ -50,10 +51,10 @@ export default function LoginScreen() {
       console.error(err);
       if (err?.code === "auth/quota-exceeded") {
         setError(
-          "Quota email Firebase depasse pour aujourd'hui. Reessaie plus tard ou contacte un admin."
+          "Quota email journalier atteint. Reviens demain ou demande à un admin."
         );
       } else {
-        setError("Impossible d'envoyer le lien. Verifie ton email.");
+        setError("Impossible d'envoyer le lien. Vérifie ton email.");
       }
     } finally {
       setLoading(false);
@@ -66,7 +67,6 @@ export default function LoginScreen() {
     try {
       setLoading(true);
       await signInWithEmailAndPassword(auth, email, password);
-      // AuthContext gérera la redirection auto vers "/"
     } catch {
       setError("Identifiants incorrects.");
     } finally {
