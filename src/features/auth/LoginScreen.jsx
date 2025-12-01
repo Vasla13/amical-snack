@@ -49,7 +49,10 @@ export default function LoginScreen() {
       setEmailSent(true);
     } catch (err) {
       console.error(err);
-      if (err?.code === "auth/quota-exceeded") {
+      // AJOUT : Gestion spécifique de l'erreur réseau
+      if (err?.code === "auth/network-request-failed") {
+        setError("Pas de connexion internet. Vérifie ton réseau.");
+      } else if (err?.code === "auth/quota-exceeded") {
         setError(
           "Quota email journalier atteint. Reviens demain ou demande à un admin."
         );
