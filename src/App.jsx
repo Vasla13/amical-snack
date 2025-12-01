@@ -7,7 +7,7 @@ import {
   serverTimestamp,
   setDoc,
   getDoc,
-  increment, // IMPORTÉ
+  increment,
 } from "firebase/firestore";
 import {
   isSignInWithEmailLink,
@@ -23,6 +23,7 @@ import { useAuth } from "./context/AuthContext.jsx";
 import { ADMIN_EMAIL } from "./config/constants.js";
 
 import LoginScreen from "./features/auth/LoginScreen.jsx";
+import AuthAction from "./features/auth/AuthAction.jsx"; // IMPORT DU NOUVEAU FICHIER
 import MainLayout from "./features/layout/MainLayout.jsx";
 import Catalog from "./features/catalog/Catalog.jsx";
 import Cart from "./features/cart/Cart.jsx";
@@ -64,6 +65,8 @@ export default function App() {
   const confirmAction = (opts) => setModal(opts);
 
   useEffect(() => {
+    // Vérifie si c'est un lien de connexion (signIn).
+    // Si c'est un lien resetPassword, isSignInWithEmailLink renvoie false et on laisse AuthAction gérer.
     if (isSignInWithEmailLink(auth, window.location.href)) {
       if (loginAttempted.current) return;
       loginAttempted.current = true;
@@ -148,7 +151,7 @@ export default function App() {
   const payOrder = async (method, order) => {
     const totalCents = Number(order.total_cents || 0);
     const pointsEarned = totalCents / 100;
-    const currentMonthKey = new Date().toISOString().slice(0, 7); // Format YYYY-MM
+    const currentMonthKey = new Date().toISOString().slice(0, 7);
 
     if (method === "paypal_balance") {
       const balance = Number(userDataRef.current?.balance_cents || 0);
@@ -166,7 +169,6 @@ export default function App() {
       points_earned: pointsEarned,
     });
 
-    // CORRECTION : Mise à jour des points ET de l'historique pour le classement
     await updateDoc(doc(db, "users", user.uid), {
       points: increment(pointsEarned),
       [`points_history.${currentMonthKey}`]: increment(pointsEarned),
@@ -186,7 +188,7 @@ export default function App() {
 
   if (authLoading || isFinishingLogin) {
     return (
-      <div className="h-screen flex items-center justify-center bg-slate-50">
+      <div className="h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">
         <div className="animate-spin w-10 h-10 border-4 border-teal-500 border-t-transparent rounded-full"></div>
       </div>
     );
@@ -194,13 +196,15 @@ export default function App() {
 
   if (needsEmailConfirm) {
     return (
-      <div className="h-screen flex flex-col items-center justify-center p-6 bg-white max-w-md mx-auto">
-        <h2 className="text-xl font-black mb-4 text-center">Sécurité</h2>
-        <p className="text-sm text-gray-500 mb-6 text-center">
+      <div className="h-screen flex flex-col items-center justify-center p-6 bg-white dark:bg-slate-900 max-w-md mx-auto">
+        <h2 className="text-xl font-black mb-4 text-center dark:text-white">
+          Sécurité
+        </h2>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-6 text-center">
           Confirme ton email pour finaliser la connexion.
         </p>
         <input
-          className="border p-4 rounded-xl w-full font-bold mb-4 bg-slate-50 focus:ring-2 ring-teal-500 outline-none"
+          className="border p-4 rounded-xl w-full font-bold mb-4 bg-slate-50 dark:bg-slate-800 dark:border-slate-700 focus:ring-2 ring-teal-500 outline-none dark:text-white"
           placeholder="Ton email (@uha.fr)"
           value={emailForLink}
           onChange={(e) => setEmailForLink(e.target.value)}
@@ -272,20 +276,20 @@ export default function App() {
           path="/setup"
           element={
             user && userData?.setup_complete === false ? (
-              <div className="h-screen flex flex-col items-center justify-center p-6 bg-white text-center font-sans max-w-md mx-auto">
+              <div className="h-screen flex flex-col items-center justify-center p-6 bg-white dark:bg-slate-900 text-center font-sans max-w-md mx-auto">
                 <div className="w-16 h-16 bg-teal-100 text-teal-600 rounded-full flex items-center justify-center mb-4">
                   <span className="text-2xl">🔐</span>
                 </div>
-                <h1 className="text-2xl font-black text-gray-800 mb-2">
+                <h1 className="text-2xl font-black text-gray-800 dark:text-white mb-2">
                   Dernière étape !
                 </h1>
-                <p className="text-gray-500 mb-8 text-sm">
+                <p className="text-gray-500 dark:text-gray-400 mb-8 text-sm">
                   Choisis un mot de passe pour te connecter plus facilement.
                 </p>
                 <div className="w-full space-y-4">
                   <input
                     type="password"
-                    className="w-full p-4 bg-gray-50 rounded-xl border border-gray-200 font-bold outline-none focus:border-teal-500 focus:ring-4 focus:ring-teal-500/10 transition-all"
+                    className="w-full p-4 bg-gray-50 dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 font-bold outline-none focus:border-teal-500 focus:ring-4 focus:ring-teal-500/10 transition-all dark:text-white"
                     placeholder="Ton mot de passe"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
@@ -352,14 +356,8 @@ export default function App() {
           />
         </Route>
 
-        <Route
-          path="/auth/action"
-          element={
-            <div className="h-screen flex items-center justify-center bg-slate-50">
-              <div className="animate-spin w-10 h-10 border-4 border-teal-500 border-t-transparent rounded-full"></div>
-            </div>
-          }
-        />
+        {/* Route pour tous les liens d'action Firebase (reset password, verify email, etc.) */}
+        <Route path="/auth/action" element={<AuthAction />} />
 
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>

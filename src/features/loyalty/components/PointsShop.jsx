@@ -8,7 +8,7 @@ import {
 import { Ticket } from "lucide-react";
 import { generateToken } from "../../../lib/token.js";
 
-// MODIFICATION ICI : Coût à 15 points pour tout
+// TOUT À 15 POINTS
 const COST_STD = 15;
 const COST_REDBULL = 15;
 
@@ -57,7 +57,7 @@ export default function PointsShop({ user, products, db, notify, onConfirm }) {
             });
           });
 
-          notify("Coupon ajout\u00e9 au Pass !", "success");
+          notify("Coupon ajouté au Pass !", "success");
         } catch (error) {
           notify(
             error?.message === "POINTS_LOW"

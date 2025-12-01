@@ -10,7 +10,7 @@ import confetti from "canvas-confetti";
 import Button from "../../../ui/Button.jsx";
 import { generateToken } from "../../../lib/token.js";
 
-// MODIFICATION ICI : Coût à 10 points
+// COÛT À 10 POINTS
 const COST = 10;
 
 const ITEM_WIDTH = 120;
@@ -21,12 +21,6 @@ const WINNER_INDEX = 60;
 const SPIN_SECONDS = 7;
 const EASING = "cubic-bezier(0.15, 0.85, 0.25, 1)";
 
-// ... Reste du fichier inchangé ...
-// Pour gagner de la place, je ne remets pas tout le contenu identique,
-// assurez-vous juste de changer "const COST = 5;" en "const COST = 10;"
-// et de garder le reste du fichier tel quel.
-
-// Voici tout le code pour éviter les erreurs de copier-coller partiel :
 function normalizePoints(points) {
   return typeof points === "number" && !Number.isNaN(points) ? points : 0;
 }
