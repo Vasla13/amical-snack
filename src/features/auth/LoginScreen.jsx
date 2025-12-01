@@ -75,12 +75,19 @@ export default function LoginScreen() {
     }
   };
 
-  // CORRECTION : Meilleure gestion d'erreur pour le reset password
+  // CORRECTION : Ajout de l'URL de redirection pour le reset password
   const handleForgot = async () => {
     const e = email.trim();
     if (!e) return setError("Entre ton email dans le champ ci-dessus.");
+
     try {
-      await sendPasswordResetEmail(auth, e);
+      // On définit l'URL de redirection vers ta page AuthAction
+      const actionCodeSettings = {
+        url: window.location.origin + "/auth/action",
+        handleCodeInApp: true,
+      };
+
+      await sendPasswordResetEmail(auth, e, actionCodeSettings);
       setSuccessMsg("Lien envoyé ! Vérifie tes spams.");
       setError("");
     } catch (err) {

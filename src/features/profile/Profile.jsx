@@ -1,5 +1,12 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { collection, onSnapshot } from "firebase/firestore";
+import {
+  collection,
+  onSnapshot,
+  doc,
+  updateDoc,
+  arrayUnion,
+  arrayRemove,
+} from "firebase/firestore";
 import { updatePassword } from "firebase/auth";
 import {
   User,
@@ -48,17 +55,24 @@ export default function Profile({ user, logout, db, uid, auth }) {
     setPwdMsg(null);
     setPwdError(null);
     if (newPwd.length < 6) return setPwdError("6 caractères minimum.");
+
     try {
       if (!auth.currentUser) return;
+
       await updatePassword(auth.currentUser, newPwd);
+
       setPwdMsg("Mot de passe mis à jour !");
       setNewPwd("");
     } catch (e) {
       console.error(e);
-      // CORRECTION : Message explicite pour la sécurité
-      setPwdError(
-        "Sécurité : Déconnecte-toi et reconnecte-toi pour changer ton mot de passe."
-      );
+      // GESTION SPÉCIFIQUE DE L'ERREUR : requires-recent-login
+      if (e.code === "auth/requires-recent-login") {
+        setPwdError(
+          "Sécurité : Pour changer le mot de passe, déconnecte-toi et reconnecte-toi, puis réessaie immédiatement."
+        );
+      } else {
+        setPwdError("Erreur : " + e.message);
+      }
     }
   };
 
