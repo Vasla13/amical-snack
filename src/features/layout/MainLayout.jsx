@@ -18,12 +18,30 @@ export default function MainLayout() {
   const { totalItems } = useCart();
   const location = useLocation();
   const navigate = useNavigate();
-  const [darkMode, setDarkMode] = useState(false);
 
-  // Gestion Dark Mode
+  // CORRECTION : On initialise avec la valeur du localStorage ou la préférence système
+  const [darkMode, setDarkMode] = useState(() => {
+    // Vérification côté client uniquement
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("theme");
+      if (saved) {
+        return saved === "dark";
+      }
+      // Sinon on regarde la préférence système
+      return window.matchMedia("(prefers-color-scheme: dark)").matches;
+    }
+    return false;
+  });
+
+  // Gestion Dark Mode et Persistance
   useEffect(() => {
-    if (darkMode) document.documentElement.classList.add("dark");
-    else document.documentElement.classList.remove("dark");
+    if (darkMode) {
+      document.documentElement.classList.add("dark");
+      localStorage.setItem("theme", "dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+      localStorage.setItem("theme", "light");
+    }
   }, [darkMode]);
 
   const currentPath = location.pathname;

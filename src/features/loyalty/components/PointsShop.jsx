@@ -56,7 +56,7 @@ export default function PointsShop({ user, products, db, notify, onConfirm }) {
             });
           });
 
-          notify("Coupon ajout\u00e9 au Pass !", "success");
+          notify("Coupon ajouté au Pass !", "success");
         } catch (error) {
           notify(
             error?.message === "POINTS_LOW"
@@ -71,8 +71,8 @@ export default function PointsShop({ user, products, db, notify, onConfirm }) {
 
   return (
     <div>
-      <h2 className="font-black text-xl text-gray-800 mb-4 flex items-center gap-2 px-1">
-        <Ticket className="text-teal-600" /> Boutique
+      <h2 className="font-black text-xl text-gray-800 dark:text-white mb-4 flex items-center gap-2 px-1">
+        <Ticket className="text-teal-600 dark:text-teal-400" /> Boutique
       </h2>
       <div className="grid grid-cols-2 gap-3">
         {(products || [])
@@ -85,9 +85,9 @@ export default function PointsShop({ user, products, db, notify, onConfirm }) {
             return (
               <div
                 key={p.id}
-                className="bg-white p-3 rounded-2xl border border-gray-100 shadow-sm flex flex-col relative group"
+                className="bg-white dark:bg-slate-900 p-3 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm flex flex-col relative group"
               >
-                <div className="absolute top-2 right-2 bg-gray-100 text-gray-600 text-[10px] font-black px-2 py-1 rounded-full">
+                <div className="absolute top-2 right-2 bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300 text-[10px] font-black px-2 py-1 rounded-full border border-gray-200 dark:border-slate-700">
                   {cost} pts
                 </div>
                 <div className="h-24 w-full flex items-center justify-center mb-2">
@@ -98,7 +98,7 @@ export default function PointsShop({ user, products, db, notify, onConfirm }) {
                     onError={(e) => (e.target.style.display = "none")}
                   />
                 </div>
-                <div className="font-bold text-xs leading-tight mb-3 line-clamp-1 text-gray-800">
+                <div className="font-bold text-xs leading-tight mb-3 line-clamp-1 text-gray-800 dark:text-gray-200">
                   {p.name}
                 </div>
                 <button
@@ -106,8 +106,8 @@ export default function PointsShop({ user, products, db, notify, onConfirm }) {
                   disabled={!canBuy}
                   className={`mt-auto w-full py-2.5 rounded-xl text-xs font-black transition-all active:scale-95 ${
                     canBuy
-                      ? "bg-teal-600 text-white shadow-md hover:bg-teal-700"
-                      : "bg-gray-100 text-gray-400 cursor-not-allowed"
+                      ? "bg-teal-600 dark:bg-teal-500 text-white shadow-md hover:bg-teal-700 dark:hover:bg-teal-400"
+                      : "bg-gray-100 dark:bg-slate-800 text-gray-400 dark:text-slate-600 cursor-not-allowed"
                   }`}
                 >
                   OBTENIR
