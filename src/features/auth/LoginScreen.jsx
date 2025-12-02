@@ -5,6 +5,7 @@ import {
   ArrowRight,
   Link as LinkIcon,
   CheckCircle2,
+  ExternalLink, // Ajout de l'icône
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Button from "../../ui/Button.jsx";
@@ -48,6 +49,17 @@ export default function LoginScreen() {
             <br />
             Touchez ce lien pour entrer.
           </p>
+
+          {/* Bouton de redirection Zimbra */}
+          <a
+            href="https://e-partage.uha.fr/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full py-4 rounded-2xl bg-teal-600 text-white font-bold text-sm mb-3 flex items-center justify-center gap-2 active:scale-95 transition-transform shadow-lg shadow-teal-500/20"
+          >
+            Ouvrir E-partage (Zimbra) <ExternalLink size={18} />
+          </a>
+
           <button
             onClick={() => setEmailSent(false)}
             className="w-full py-4 rounded-2xl bg-slate-100 text-slate-600 font-bold text-sm active:scale-95 transition-transform"
