@@ -4,10 +4,11 @@ import {
   query,
   orderBy,
   onSnapshot,
+  limit, // Important pour la performance
   updateDoc,
   doc,
 } from "firebase/firestore";
-import { isExpired, getCreatedMs } from "../utils/orders.js";
+import { isExpired } from "../utils/orders.js";
 
 const ORDER_TTL_MS = 10 * 60 * 1000;
 
@@ -21,18 +22,23 @@ export function useAdminOrders(db) {
     ordersRef.current = orders;
   }, [orders]);
 
-  // Stream orders
+  // Chargement optimisé
   useEffect(() => {
-    const q = query(collection(db, "orders"), orderBy("created_at", "desc"));
+    // On ne récupère que les 100 plus récentes
+    const q = query(
+      collection(db, "orders"),
+      orderBy("created_at", "desc"),
+      limit(100)
+    );
+
     const unsub = onSnapshot(
       q,
       (s) => {
-        setOrders(
-          s.docs.map((d) => ({
-            id: d.id,
-            ...d.data({ serverTimestamps: "estimate" }),
-          }))
-        );
+        const loadedData = s.docs.map((d) => ({
+          id: d.id,
+          ...d.data({ serverTimestamps: "estimate" }),
+        }));
+        setOrders(loadedData);
         setLoading(false);
       },
       (err) => {
@@ -44,7 +50,6 @@ export function useAdminOrders(db) {
     return () => unsub();
   }, [db]);
 
-  // Expiration auto
   const expireOrdersNow = useCallback(async () => {
     try {
       const list = ordersRef.current || [];

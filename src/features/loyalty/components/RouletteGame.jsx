@@ -26,35 +26,38 @@ export default function RouletteGame({
 
   const handleSpinClick = () => {
     spin((winnerItem) => {
-      onConfirm?.({
-        title: "🎉 C'EST GAGNÉ !",
-        text: (
-          <div className="flex flex-col items-center gap-4 py-4 animate-in zoom-in duration-300">
-            <div className="relative">
-              <div className="absolute inset-0 bg-yellow-400 blur-3xl opacity-20 animate-pulse rounded-full" />
-              <div className="relative z-10 bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-xl">
-                <img
-                  src={winnerItem?.image}
-                  className="w-28 h-28 object-contain drop-shadow-md"
-                  alt={winnerItem?.name}
-                  onError={(e) => (e.target.style.display = "none")}
-                />
+      if (onConfirm) {
+        onConfirm({
+          title: "🎉 C'EST GAGNÉ !",
+          text: (
+            <div className="flex flex-col items-center gap-4 py-4 animate-in zoom-in duration-300">
+              <div className="relative">
+                <div className="absolute inset-0 bg-yellow-400 blur-3xl opacity-20 animate-pulse rounded-full" />
+                <div className="relative z-10 bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-xl">
+                  <img
+                    src={winnerItem?.image}
+                    className="w-28 h-28 object-contain drop-shadow-md"
+                    alt={winnerItem?.name}
+                    onError={(e) => (e.target.style.display = "none")}
+                  />
+                </div>
+              </div>
+              <div className="text-center">
+                <p className="text-teal-600 dark:text-teal-400 text-xs font-black uppercase tracking-widest mb-2">
+                  Félicitations
+                </p>
+                <p className="text-2xl font-black text-slate-800 dark:text-white leading-tight">
+                  {winnerItem?.name}
+                </p>
+                <p className="text-xs text-slate-400 mt-2">Ajouté à ton Pass</p>
               </div>
             </div>
-            <div className="text-center">
-              <p className="text-teal-600 dark:text-teal-400 text-xs font-black uppercase tracking-widest mb-2">
-                Félicitations
-              </p>
-              <p className="text-2xl font-black text-slate-800 dark:text-white leading-tight">
-                {winnerItem?.name}
-              </p>
-            </div>
-          </div>
-        ),
-        confirmText: "VOIR MON CADEAU",
-        cancelText: "REJOUER",
-        onOk: () => onGoToPass?.(),
-      });
+          ),
+          confirmText: "VOIR MON CADEAU",
+          cancelText: "REJOUER",
+          onOk: () => onGoToPass?.(),
+        });
+      }
     });
   };
 
@@ -73,11 +76,11 @@ export default function RouletteGame({
         </span>
       </div>
 
-      {/* Zone de Jeu (Adaptée Light/Dark) */}
-      <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-3 shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-100 dark:border-slate-800 relative overflow-hidden ring-4 ring-slate-50 dark:ring-slate-800 transition-colors">
+      {/* Zone de Jeu */}
+      <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-3 shadow-xl border border-slate-100 dark:border-slate-800 relative overflow-hidden ring-4 ring-slate-50 dark:ring-slate-800 transition-colors">
         {/* Fenêtre de la roulette */}
         <div className="relative z-10 bg-slate-50 dark:bg-slate-950/50 rounded-[1.5rem] border border-slate-100 dark:border-slate-800 h-[160px] overflow-hidden">
-          {/* Ombres internes pour la profondeur */}
+          {/* Ombres internes */}
           <div className="pointer-events-none absolute inset-y-0 left-0 w-24 bg-gradient-to-r from-slate-50 dark:from-slate-950 to-transparent z-20" />
           <div className="pointer-events-none absolute inset-y-0 right-0 w-24 bg-gradient-to-l from-slate-50 dark:from-slate-950 to-transparent z-20" />
 
@@ -151,22 +154,16 @@ export default function RouletteGame({
         <div className="mt-3">
           <Button
             onClick={handleSpinClick}
-            disabled={
-              !canPlay || gameState === "spinning" || gameState === "saving"
-            }
+            disabled={!canPlay || gameState === "spinning"}
             className={`w-full py-4 text-sm font-black tracking-wide shadow-lg active:scale-[0.98] ${
               !canPlay
                 ? "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 border border-slate-200 dark:border-slate-700 cursor-not-allowed shadow-none"
                 : "bg-slate-900 dark:bg-white text-white dark:text-slate-900"
             }`}
           >
-            {gameState === "saving" ? (
-              <span className="flex items-center gap-2">
-                <Loader2 className="animate-spin" size={18} /> VALIDATION...
-              </span>
-            ) : gameState === "spinning" ? (
+            {gameState === "spinning" ? (
               <span className="flex items-center gap-2 animate-pulse">
-                LES JEUX SONT FAITS...
+                <Loader2 className="animate-spin" size={18} /> TENSION...
               </span>
             ) : (
               <span className="flex items-center gap-2">

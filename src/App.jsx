@@ -25,15 +25,15 @@ import {
 import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
 
 import { auth, db } from "./config/firebase.js";
-import { useAuth } from "./context/AuthContext.tsx"; // Note l'extension .tsx
+import { useAuth } from "./context/AuthContext.tsx";
 import { ADMIN_EMAIL } from "./config/constants.js";
 
-// Eager Loading pour le Login/Layout critique
+// Eager Loading
 import LoginScreen from "./features/auth/LoginScreen.jsx";
 import AuthAction from "./features/auth/AuthAction.jsx";
 import MainLayout from "./features/layout/MainLayout.jsx";
 
-// Lazy Loading pour les pages "lourdes"
+// Lazy Loading
 const Catalog = lazy(() => import("./features/catalog/Catalog.jsx"));
 const Cart = lazy(() => import("./features/cart/Cart.jsx"));
 const PassScreen = lazy(() => import("./features/order/PassScreen.jsx"));
@@ -46,18 +46,40 @@ const AdminDashboard = lazy(() =>
 );
 const KitchenDisplay = lazy(() =>
   import("./features/admin/KitchenDisplay.jsx")
-); // Nouvelle vue
+);
 
 import Button from "./ui/Button.jsx";
 import Toast from "./ui/Toast.jsx";
 import Modal from "./ui/Modal.jsx";
 
-// Composant de chargement simple pour le Suspense
 const Loading = () => (
   <div className="h-full flex items-center justify-center p-10">
     <div className="animate-spin w-8 h-8 border-4 border-teal-500 border-t-transparent rounded-full"></div>
   </div>
 );
+
+// --- CORRECTION : ProtectedRoute est défini ICI, en dehors de App ---
+// Cela empêche le démontage complet de l'application à chaque mise à jour des points
+const ProtectedRoute = ({ children }) => {
+  const { user, userData, isAdmin } = useAuth(); // On récupère le contexte ici
+
+  if (!user) return <Navigate to="/login" />;
+
+  // Attente du chargement du profil Firestore
+  if (userData === null && !isAdmin)
+    return (
+      <div className="h-screen flex items-center justify-center">
+        Chargement...
+      </div>
+    );
+
+  if (userData && userData.setup_complete === false)
+    return <Navigate to="/setup" />;
+
+  if (userData && userData.role === "admin") return <Navigate to="/admin" />;
+
+  return children;
+};
 
 export default function App() {
   const { user, userData, loading: authLoading, isAdmin } = useAuth();
@@ -184,13 +206,11 @@ export default function App() {
       points_earned: pointsEarned,
     });
 
-    // Mise à jour des points
     await updateDoc(doc(db, "users", user.uid), {
       points: increment(pointsEarned),
       [`points_history.${currentMonthKey}`]: increment(pointsEarned),
     });
 
-    // --- AJOUT HISTORIQUE ---
     await addDoc(collection(db, "users", user.uid, "transactions"), {
       type: "earn",
       amount: pointsEarned,
@@ -239,20 +259,6 @@ export default function App() {
       </div>
     );
   }
-
-  const ProtectedRoute = ({ children }) => {
-    if (!user) return <Navigate to="/login" />;
-    if (userData === null && !isAdmin)
-      return (
-        <div className="h-screen flex items-center justify-center">
-          Chargement...
-        </div>
-      );
-    if (userData && userData.setup_complete === false)
-      return <Navigate to="/setup" />;
-    if (userData && userData.role === "admin") return <Navigate to="/admin" />;
-    return children;
-  };
 
   return (
     <>
