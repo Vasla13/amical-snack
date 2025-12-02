@@ -50,7 +50,8 @@ export default function MainLayout() {
   return (
     <div className="h-screen flex flex-col bg-slate-50 dark:bg-slate-950 max-w-md mx-auto relative font-sans text-slate-800 dark:text-slate-100 overflow-hidden sm:border-x border-slate-200 dark:border-slate-800 transition-colors duration-300">
       {/* HEADER FIXE (Z-INDEX 50 pour passer au dessus de tout) */}
-      <header className="absolute top-0 left-0 right-0 z-50 px-5 py-4 flex justify-between items-center bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-white/50 dark:border-slate-800/50 transition-colors">
+      {/* Ajout de backdrop-blur-xl et suppression de la bordure blanche trop marquée */}
+      <header className="absolute top-0 left-0 right-0 z-50 px-5 py-4 flex justify-between items-center bg-white/60 dark:bg-slate-950/60 backdrop-blur-xl border-b border-slate-200/50 dark:border-slate-800/50 transition-colors shadow-sm">
         <div className="flex items-center gap-3">
           <div className="relative">
             <div className="absolute inset-0 bg-teal-500 rounded-full blur opacity-20"></div>

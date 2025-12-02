@@ -62,9 +62,9 @@ export default function Catalog({ products }) {
   return (
     <div className="px-4 pb-4 min-h-full flex flex-col pt-2">
       {/* HEADER RECHERCHE & FILTRES */}
-      <div className="sticky top-2 z-40 mb-6 space-y-3">
-        {/* Barre de recherche flottante */}
-        <div className="relative shadow-lg shadow-slate-200/40 dark:shadow-none rounded-2xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border border-white/50 dark:border-slate-800 transition-all">
+      <div className="mb-6 space-y-3">
+        {/* Barre de recherche (Style simplifié car elle n'est plus flottante) */}
+        <div className="relative bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 transition-all">
           <div className="flex items-center px-4 py-3.5">
             <Search className="text-slate-400 w-5 h-5 mr-3" />
             <input
