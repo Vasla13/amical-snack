@@ -1,12 +1,18 @@
-import React, { useEffect, useState, useRef, useCallback } from "react";
+import React, {
+  useEffect,
+  useState,
+  useRef,
+  useCallback,
+  Suspense,
+  lazy,
+} from "react";
 import {
   collection,
   onSnapshot,
   doc,
   updateDoc,
   serverTimestamp,
-  setDoc,
-  getDoc,
+  addDoc,
   increment,
 } from "firebase/firestore";
 import {
@@ -19,22 +25,39 @@ import {
 import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
 
 import { auth, db } from "./config/firebase.js";
-import { useAuth } from "./context/AuthContext.jsx";
+import { useAuth } from "./context/AuthContext.tsx"; // Note l'extension .tsx
 import { ADMIN_EMAIL } from "./config/constants.js";
 
+// Eager Loading pour le Login/Layout critique
 import LoginScreen from "./features/auth/LoginScreen.jsx";
-import AuthAction from "./features/auth/AuthAction.jsx"; // IMPORT DU NOUVEAU FICHIER
+import AuthAction from "./features/auth/AuthAction.jsx";
 import MainLayout from "./features/layout/MainLayout.jsx";
-import Catalog from "./features/catalog/Catalog.jsx";
-import Cart from "./features/cart/Cart.jsx";
-import PassScreen from "./features/order/PassScreen.jsx";
-import LoyaltyScreen from "./features/loyalty/LoyaltyScreen.jsx";
-import Profile from "./features/profile/Profile.jsx";
-import AdminDashboard from "./features/admin/AdminDashboard.jsx";
+
+// Lazy Loading pour les pages "lourdes"
+const Catalog = lazy(() => import("./features/catalog/Catalog.jsx"));
+const Cart = lazy(() => import("./features/cart/Cart.jsx"));
+const PassScreen = lazy(() => import("./features/order/PassScreen.jsx"));
+const LoyaltyScreen = lazy(() =>
+  import("./features/loyalty/LoyaltyScreen.jsx")
+);
+const Profile = lazy(() => import("./features/profile/Profile.jsx"));
+const AdminDashboard = lazy(() =>
+  import("./features/admin/AdminDashboard.jsx")
+);
+const KitchenDisplay = lazy(() =>
+  import("./features/admin/KitchenDisplay.jsx")
+); // Nouvelle vue
 
 import Button from "./ui/Button.jsx";
 import Toast from "./ui/Toast.jsx";
 import Modal from "./ui/Modal.jsx";
+
+// Composant de chargement simple pour le Suspense
+const Loading = () => (
+  <div className="h-full flex items-center justify-center p-10">
+    <div className="animate-spin w-8 h-8 border-4 border-teal-500 border-t-transparent rounded-full"></div>
+  </div>
+);
 
 export default function App() {
   const { user, userData, loading: authLoading, isAdmin } = useAuth();
@@ -49,7 +72,6 @@ export default function App() {
   const [needsEmailConfirm, setNeedsEmailConfirm] = useState(false);
 
   const loginAttempted = useRef(false);
-
   const [newPassword, setNewPassword] = useState("");
   const [pwdLoading, setPwdLoading] = useState(false);
 
@@ -65,14 +87,10 @@ export default function App() {
   const confirmAction = (opts) => setModal(opts);
 
   useEffect(() => {
-    // Vérifie si c'est un lien de connexion (signIn).
-    // Si c'est un lien resetPassword, isSignInWithEmailLink renvoie false et on laisse AuthAction gérer.
     if (isSignInWithEmailLink(auth, window.location.href)) {
       if (loginAttempted.current) return;
       loginAttempted.current = true;
-
       let email = window.localStorage.getItem("emailForSignIn");
-
       if (!email) {
         setNeedsEmailConfirm(true);
       } else {
@@ -112,12 +130,10 @@ export default function App() {
     try {
       const currentUser = auth.currentUser;
       if (!currentUser) throw new Error("Session perdue.");
-
       const credential = EmailAuthProvider.credential(
         currentUser.email,
         newPassword
       );
-
       try {
         await linkWithCredential(currentUser, credential);
       } catch (err) {
@@ -130,7 +146,6 @@ export default function App() {
           throw err;
         }
       }
-
       await updateDoc(doc(db, "users", currentUser.uid), {
         setup_complete: true,
       });
@@ -169,12 +184,21 @@ export default function App() {
       points_earned: pointsEarned,
     });
 
+    // Mise à jour des points
     await updateDoc(doc(db, "users", user.uid), {
       points: increment(pointsEarned),
       [`points_history.${currentMonthKey}`]: increment(pointsEarned),
     });
 
-    notify("Paiement validé !", "success");
+    // --- AJOUT HISTORIQUE ---
+    await addDoc(collection(db, "users", user.uid, "transactions"), {
+      type: "earn",
+      amount: pointsEarned,
+      reason: `Commande #${order.qr_token}`,
+      date: serverTimestamp(),
+    });
+
+    notify("Paiement validé ! Points gagnés.", "success");
   };
 
   const requestCashPayment = async (order) => {
@@ -253,114 +277,142 @@ export default function App() {
         {modal?.text}
       </Modal>
 
-      <Routes>
-        <Route
-          path="/login"
-          element={!user ? <LoginScreen /> : <Navigate to="/" />}
-        />
-        <Route
-          path="/admin"
-          element={
-            isAdmin ? (
-              <AdminDashboard
-                db={db}
-                products={products}
-                onLogout={handleLogout}
-              />
-            ) : (
-              <Navigate to="/" />
-            )
-          }
-        />
-        <Route
-          path="/setup"
-          element={
-            user && userData?.setup_complete === false ? (
-              <div className="h-screen flex flex-col items-center justify-center p-6 bg-white dark:bg-slate-900 text-center font-sans max-w-md mx-auto">
-                <div className="w-16 h-16 bg-teal-100 text-teal-600 rounded-full flex items-center justify-center mb-4">
-                  <span className="text-2xl">🔐</span>
+      <Suspense
+        fallback={<div className="h-screen bg-slate-50 dark:bg-slate-950" />}
+      >
+        <Routes>
+          <Route
+            path="/login"
+            element={!user ? <LoginScreen /> : <Navigate to="/" />}
+          />
+
+          <Route
+            path="/admin"
+            element={
+              isAdmin ? (
+                <AdminDashboard
+                  db={db}
+                  products={products}
+                  onLogout={handleLogout}
+                />
+              ) : (
+                <Navigate to="/" />
+              )
+            }
+          />
+          <Route
+            path="/kitchen"
+            element={isAdmin ? <KitchenDisplay /> : <Navigate to="/" />}
+          />
+
+          <Route
+            path="/setup"
+            element={
+              user && userData?.setup_complete === false ? (
+                <div className="h-screen flex flex-col items-center justify-center p-6 bg-white dark:bg-slate-900 text-center font-sans max-w-md mx-auto">
+                  <div className="w-16 h-16 bg-teal-100 text-teal-600 rounded-full flex items-center justify-center mb-4">
+                    <span className="text-2xl">🔐</span>
+                  </div>
+                  <h1 className="text-2xl font-black text-gray-800 dark:text-white mb-2">
+                    Dernière étape !
+                  </h1>
+                  <p className="text-gray-500 dark:text-gray-400 mb-8 text-sm">
+                    Choisis un mot de passe.
+                  </p>
+                  <div className="w-full space-y-4">
+                    <input
+                      type="password"
+                      className="w-full p-4 bg-gray-50 dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 font-bold outline-none focus:border-teal-500 transition-all dark:text-white"
+                      placeholder="Ton mot de passe"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                    />
+                    <Button
+                      onClick={handleCreatePassword}
+                      disabled={pwdLoading}
+                      className="w-full py-4 text-base"
+                    >
+                      {pwdLoading ? "Enregistrement..." : "TERMINER"}
+                    </Button>
+                  </div>
                 </div>
-                <h1 className="text-2xl font-black text-gray-800 dark:text-white mb-2">
-                  Dernière étape !
-                </h1>
-                <p className="text-gray-500 dark:text-gray-400 mb-8 text-sm">
-                  Choisis un mot de passe pour te connecter plus facilement.
-                </p>
-                <div className="w-full space-y-4">
-                  <input
-                    type="password"
-                    className="w-full p-4 bg-gray-50 dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 font-bold outline-none focus:border-teal-500 focus:ring-4 focus:ring-teal-500/10 transition-all dark:text-white"
-                    placeholder="Ton mot de passe"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
+              ) : (
+                <Navigate to="/" />
+              )
+            }
+          />
+
+          <Route
+            path="/"
+            element={
+              <ProtectedRoute>
+                <MainLayout />
+              </ProtectedRoute>
+            }
+          >
+            <Route
+              index
+              element={
+                <Suspense fallback={<Loading />}>
+                  <Catalog products={products} />
+                </Suspense>
+              }
+            />
+            <Route
+              path="cart"
+              element={
+                <Suspense fallback={<Loading />}>
+                  <Cart notify={notify} />
+                </Suspense>
+              }
+            />
+            <Route
+              path="pass"
+              element={
+                <Suspense fallback={<Loading />}>
+                  <PassScreen
+                    db={db}
+                    onPay={payOrder}
+                    onRequestCash={requestCashPayment}
                   />
-                  <Button
-                    onClick={handleCreatePassword}
-                    disabled={pwdLoading}
-                    className="w-full py-4 text-base shadow-xl shadow-teal-500/20"
-                  >
-                    {pwdLoading ? "Enregistrement..." : "TERMINER ET ENTRER"}
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <Navigate to="/" />
-            )
-          }
-        />
+                </Suspense>
+              }
+            />
+            <Route
+              path="loyalty"
+              element={
+                <Suspense fallback={<Loading />}>
+                  <LoyaltyScreen
+                    user={userData}
+                    products={products}
+                    db={db}
+                    onGoToPass={() => navigate("/pass")}
+                    notify={notify}
+                    onConfirm={confirmAction}
+                  />
+                </Suspense>
+              }
+            />
+            <Route
+              path="profile"
+              element={
+                <Suspense fallback={<Loading />}>
+                  <Profile
+                    user={userData}
+                    logout={handleLogout}
+                    db={db}
+                    uid={user?.uid}
+                    auth={auth}
+                  />
+                </Suspense>
+              }
+            />
+          </Route>
 
-        <Route
-          path="/"
-          element={
-            <ProtectedRoute>
-              <MainLayout />
-            </ProtectedRoute>
-          }
-        >
-          <Route index element={<Catalog products={products} />} />
-          <Route path="cart" element={<Cart notify={notify} />} />
-          <Route
-            path="pass"
-            element={
-              <PassScreen
-                db={db}
-                onPay={payOrder}
-                onRequestCash={requestCashPayment}
-              />
-            }
-          />
-          <Route
-            path="loyalty"
-            element={
-              <LoyaltyScreen
-                user={userData}
-                products={products}
-                db={db}
-                onGoToPass={() => navigate("/pass")}
-                notify={notify}
-                onConfirm={confirmAction}
-              />
-            }
-          />
-          <Route
-            path="profile"
-            element={
-              <Profile
-                user={userData}
-                logout={handleLogout}
-                db={db}
-                uid={user?.uid}
-                auth={auth}
-              />
-            }
-          />
-        </Route>
-
-        {/* Route pour tous les liens d'action Firebase (reset password, verify email, etc.) */}
-        <Route path="/auth/action" element={<AuthAction />} />
-
-        <Route path="*" element={<Navigate to="/" />} />
-      </Routes>
+          <Route path="/auth/action" element={<AuthAction />} />
+          <Route path="*" element={<Navigate to="/" />} />
+        </Routes>
+      </Suspense>
     </>
   );
 }

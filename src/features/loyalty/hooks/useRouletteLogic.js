@@ -4,10 +4,11 @@ import {
   collection,
   serverTimestamp,
   runTransaction,
+  increment,
 } from "firebase/firestore";
 import confetti from "canvas-confetti";
 import { generateToken } from "../../../lib/token.js";
-import { useFeedback } from "../../../hooks/useFeedback.js"; // IMPORT
+import { useFeedback } from "../../../hooks/useFeedback.js";
 
 const COST = 10;
 const TOTAL_ITEMS = 80;
@@ -21,14 +22,24 @@ function normalizePoints(points) {
   return typeof points === "number" && !Number.isNaN(points) ? points : 0;
 }
 
-function getRandomWeightedItem(items) {
+// Fonction aléatoire pondérée
+function getRandomWeightedItem(items, badLuckCount = 0) {
   const clean = (items || []).filter((it) => it && it.id);
   if (clean.length === 0) return null;
-  const weights = clean.map((it) =>
-    typeof it.probability === "number" && it.probability > 0
-      ? it.probability
-      : 1
-  );
+
+  // PROTECTION BAD LUCK : Si le joueur a perdu beaucoup, on booste les "gros lots" (ceux avec une proba faible)
+  const boostFactor = badLuckCount > 5 ? 3 : 1;
+
+  const weights = clean.map((it) => {
+    let w =
+      typeof it.probability === "number" && it.probability > 0
+        ? it.probability
+        : 1;
+    // Si c'est un item rare (proba < 0.1) et qu'on a de la malchance, on booste
+    if (boostFactor > 1 && w < 0.1) w *= boostFactor;
+    return w;
+  });
+
   const total = weights.reduce((s, w) => s + w, 0);
   let r = Math.random() * total;
   for (let i = 0; i < clean.length; i++) {
@@ -51,7 +62,7 @@ export function useRouletteLogic({ user, products, db, notify }) {
   const animationRef = useRef(null);
   const mountedRef = useRef(false);
 
-  const { trigger } = useFeedback(); // HOOK FEEDBACK
+  const { trigger } = useFeedback();
 
   const availableProducts = useMemo(
     () => (products || []).filter((p) => p && p.id && p.is_available !== false),
@@ -89,18 +100,22 @@ export function useRouletteLogic({ user, products, db, notify }) {
     if (normalizePoints(user?.points) < COST)
       return notify?.("Points insuffisants !", "error");
 
-    const winnerItem = getRandomWeightedItem(availableProducts);
+    // On utilise le compteur de malchance de l'utilisateur
+    const badLuck = user?.bad_luck_count || 0;
+    const winnerItem = getRandomWeightedItem(availableProducts, badLuck);
+
     if (!winnerItem) return notify?.("Stock vide !", "error");
     winnerRef.current = winnerItem;
 
-    const gameStrip = Array.from({ length: TOTAL_ITEMS }, () =>
-      getRandomWeightedItem(availableProducts)
+    const gameStrip = Array.from(
+      { length: TOTAL_ITEMS },
+      () => getRandomWeightedItem(availableProducts) // Strip visuel standard
     );
     gameStrip[WINNER_INDEX] = winnerItem;
 
     setStrip(gameStrip);
     setGameState("spinning");
-    trigger("spin"); // SON DÉPART
+    trigger("spin");
 
     await nextFrame();
     await nextFrame();
@@ -120,6 +135,7 @@ export function useRouletteLogic({ user, products, db, notify }) {
     const containerWidth = cont.clientWidth || 0;
     const offset = containerWidth / 2 - ITEM_WIDTH / 2;
     const targetLeft = WINNER_INDEX * (ITEM_WIDTH + GAP);
+    // Petite variation pour le "Near Miss" (on s'arrête parfois un peu avant/après le centre)
     const randomShift = Math.floor(Math.random() * 24) - 12;
     const finalX = -(targetLeft - offset + randomShift);
 
@@ -150,14 +166,31 @@ export function useRouletteLogic({ user, products, db, notify }) {
       await runTransaction(db, async (tx) => {
         const userRef = doc(db, "users", user.uid);
         const orderRef = doc(collection(db, "orders"));
+        const historyRef = doc(
+          collection(db, "users", user.uid, "transactions")
+        ); // HISTORIQUE
+
         const snap = await tx.get(userRef);
         if (!snap.exists()) throw new Error("USER_NOT_FOUND");
         const pts = normalizePoints(snap.data()?.points);
         if (pts < COST) throw new Error("POINTS_LOW");
 
+        // Mise à jour des points et Reset/Increment Bad Luck
+        // On considère un "gros lot" si le prix > 150 cents par exemple, sinon c'est un lot de consolation
+        const isBigWin = winnerItem.price_cents > 150;
+
         tx.update(userRef, {
           points: pts - COST,
           lastUpdated: serverTimestamp(),
+          bad_luck_count: isBigWin ? 0 : increment(1), // Reset si gros gain, sinon +1
+        });
+
+        // Enregistrement historique débit
+        tx.set(historyRef, {
+          type: "spend",
+          amount: -COST,
+          reason: "Roulette",
+          date: serverTimestamp(),
         });
 
         tx.set(orderRef, {
@@ -173,7 +206,7 @@ export function useRouletteLogic({ user, products, db, notify }) {
       });
 
       setGameState("won");
-      trigger("success"); // SON CS:GO REVEAL 🔊
+      trigger("success");
 
       confetti({
         particleCount: 40,

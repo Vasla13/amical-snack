@@ -7,7 +7,8 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["favicon.ico", "apple-touch-icon.png", "logo.png"],
+      // Modification ici : favicon.ico remplacé par logo.ico
+      includeAssets: ["logo.ico", "apple-touch-icon.png", "logo.png"],
       manifest: {
         name: "Amicale R&T",
         short_name: "Amicale",

@@ -1,3 +1,6 @@
+import { User } from "firebase/auth";
+import { Firestore } from "firebase/firestore";
+
 export interface CartItem {
   id: string;
   name: string;
@@ -19,15 +22,11 @@ export interface Order {
     | "paid"
     | "served"
     | "reward_pending"
-    | "expired";
+    | "expired"
+    | "cash";
   items: CartItem[];
-  created_at: any; // Firebase Timestamp
-  payment_method?:
-    | "apple_pay"
-    | "google_pay"
-    | "paypal_balance"
-    | "cash"
-    | "loyalty";
+  created_at: any;
+  payment_method?: string;
   points_earned?: number;
 }
 
@@ -39,5 +38,30 @@ export interface UserProfile {
   points: number;
   balance_cents: number;
   favorites?: string[];
-  points_history?: Record<string, number>; // Ex: { "2023-10": 120 }
+  points_history?: Record<string, number>;
+  setup_complete?: boolean;
+  fcmToken?: string;
+  bad_luck_count?: number; // Nouveau pour la roulette
+}
+
+// Context Types
+export interface AuthContextType {
+  user: User | null;
+  userData: UserProfile | null;
+  loading: boolean;
+  isAdmin: boolean;
+  db: Firestore;
+}
+
+export interface CartContextType {
+  cart: CartItem[];
+  addToCart: (product: CartItem) => void;
+  removeFromCart: (productId: string) => void;
+  clearCart: () => void;
+  createOrder: (
+    onSuccess: (id: string) => void,
+    onError?: (msg: string) => void
+  ) => Promise<void>;
+  totalItems: number;
+  setCart: (cart: CartItem[]) => void;
 }

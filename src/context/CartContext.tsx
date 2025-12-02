@@ -3,22 +3,25 @@ import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { db } from "../config/firebase";
 import { generateToken } from "../lib/token";
 import { useAuth } from "./AuthContext";
-import { useFeedback } from "../hooks/useFeedback"; // IMPORT
+import { useFeedback } from "../hooks/useFeedback";
+import { CartContextType, CartItem } from "../types";
 
-const CartContext = createContext();
+const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export function useCart() {
-  return useContext(CartContext);
+  const context = useContext(CartContext);
+  if (!context) throw new Error("useCart doit être utilisé dans CartProvider");
+  return context;
 }
 
-export function CartProvider({ children }) {
-  const [cart, setCart] = useState([]);
+export function CartProvider({ children }: { children: React.ReactNode }) {
+  const [cart, setCart] = useState<CartItem[]>([]);
   const { userData: user } = useAuth();
   const { trigger } = useFeedback();
 
-  const addToCart = (product) => {
+  const addToCart = (product: CartItem) => {
     if (product.is_available === false) return;
-    trigger("click"); // FEEDBACK
+    trigger("click");
     setCart((prev) => {
       const existing = prev.find((i) => i.id === product.id);
       if (existing) {
@@ -30,8 +33,8 @@ export function CartProvider({ children }) {
     });
   };
 
-  const removeFromCart = (productId) => {
-    trigger("click"); // FEEDBACK
+  const removeFromCart = (productId: string) => {
+    trigger("click");
     setCart((prev) =>
       prev
         .map((i) => (i.id === productId ? { ...i, qty: i.qty - 1 } : i))
@@ -41,13 +44,18 @@ export function CartProvider({ children }) {
 
   const clearCart = () => setCart([]);
 
-  const createOrder = async (onSuccess, onError) => {
+  const createOrder = async (
+    onSuccess: (id: string) => void,
+    onError?: (msg: string) => void
+  ) => {
     if (!cart.length || !user?.uid) return;
+
     const outOfStock = cart.find((i) => i.is_available === false);
     if (outOfStock) {
       if (onError) onError(`Rupture : ${outOfStock.name}`);
       return;
     }
+
     try {
       const total = cart.reduce((s, i) => s + i.price_cents * i.qty, 0);
       const docRef = await addDoc(collection(db, "orders"), {
@@ -61,7 +69,7 @@ export function CartProvider({ children }) {
       });
       clearCart();
       if (onSuccess) onSuccess(docRef.id);
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
       if (onError) onError(e.message);
     }
@@ -72,15 +80,19 @@ export function CartProvider({ children }) {
     [cart]
   );
 
-  const value = {
-    cart,
-    addToCart,
-    removeFromCart,
-    clearCart,
-    createOrder,
-    totalItems,
-    setCart,
-  };
-
-  return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
+  return (
+    <CartContext.Provider
+      value={{
+        cart,
+        addToCart,
+        removeFromCart,
+        clearCart,
+        createOrder,
+        totalItems,
+        setCart,
+      }}
+    >
+      {children}
+    </CartContext.Provider>
+  );
 }

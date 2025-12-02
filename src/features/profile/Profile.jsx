@@ -1,14 +1,22 @@
 import React, { useEffect, useState } from "react";
 import { collection, onSnapshot } from "firebase/firestore";
-import { User, Trophy, Medal, Settings, CreditCard } from "lucide-react";
+import {
+  User,
+  Trophy,
+  Medal,
+  Settings,
+  CreditCard,
+  History,
+} from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import ProfileLeaderboard from "./tabs/ProfileLeaderboard";
 import ProfileSettings from "./tabs/ProfileSettings";
-import ProfileLevels from "./tabs/ProfileLevels"; // IMPORT
+import ProfileLevels from "./tabs/ProfileLevels";
+import ProfileHistory from "./tabs/ProfileHistory.jsx"; // Nouvel import
 
 export default function Profile({ user, logout, db, uid, auth }) {
   const [users, setUsers] = useState([]);
-  const [activeTab, setActiveTab] = useState("levels"); // 'levels' par défaut
+  const [activeTab, setActiveTab] = useState("levels");
 
   useEffect(() => {
     if (!db) return;
@@ -21,6 +29,14 @@ export default function Profile({ user, logout, db, uid, auth }) {
     Number(p || 0)
       .toFixed(2)
       .replace(/[.,]00$/, "");
+
+  // Configuration des onglets
+  const tabs = [
+    { id: "levels", label: "Niveaux", icon: Medal },
+    { id: "history", label: "Historique", icon: History },
+    { id: "leaderboard", label: "Classement", icon: Trophy },
+    { id: "settings", label: "Paramètres", icon: Settings },
+  ];
 
   return (
     <div className="min-h-full pb-24 px-4 pt-4 bg-slate-50 dark:bg-slate-950 relative overflow-hidden font-sans transition-colors">
@@ -132,16 +148,12 @@ export default function Profile({ user, logout, db, uid, auth }) {
           </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 p-1.5 rounded-2xl border border-slate-200/60 dark:border-slate-800 shadow-sm flex gap-1 relative z-20">
-          {[
-            { id: "levels", label: "Niveaux", icon: Medal },
-            { id: "leaderboard", label: "Classement", icon: Trophy },
-            { id: "settings", label: "Paramètres", icon: Settings },
-          ].map((tab) => (
+        <div className="bg-white dark:bg-slate-900 p-1.5 rounded-2xl border border-slate-200/60 dark:border-slate-800 shadow-sm flex gap-1 relative z-20 overflow-x-auto no-scrollbar">
+          {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-bold transition-all duration-300 ${
+              className={`flex-1 flex items-center justify-center gap-2 py-3 px-2 rounded-xl text-xs font-bold transition-all duration-300 min-w-fit ${
                 activeTab === tab.id
                   ? "bg-slate-900 dark:bg-slate-800 text-white shadow-md transform scale-[1.02]"
                   : "text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-600"
@@ -162,6 +174,17 @@ export default function Profile({ user, logout, db, uid, auth }) {
               exit={{ opacity: 0, y: -10 }}
             >
               <ProfileLevels user={user} />
+            </motion.div>
+          )}
+
+          {activeTab === "history" && (
+            <motion.div
+              key="history"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+            >
+              <ProfileHistory db={db} user={user} />
             </motion.div>
           )}
 
