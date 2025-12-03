@@ -1,20 +1,28 @@
 import React from "react";
 import { Banknote, Gift, Package } from "lucide-react";
-import TicketBon from "./TicketBon.jsx";
-import { formatPrice } from "../../../lib/format.js";
-import { getCreatedMs } from "../utils/orders.js";
+import TicketBon from "./TicketBon";
+import { formatPrice } from "../../../lib/format";
+import { getCreatedMs } from "../utils/orders";
+import { Order } from "../../../types"; // Import du type
+
+// Définition des Props du composant
+interface AdminOrderCardProps {
+  order: Order;
+  onServe: (orderId: string) => void;
+  onConfirmCash: (order: Order) => void;
+  db?: any;
+}
 
 export default function AdminOrderCard({
   order,
   onServe,
   onConfirmCash,
-  db, // Si besoin de passer db, sinon la fonction parente gère
-}) {
+}: AdminOrderCardProps) {
   const isReward =
     order.status === "reward_pending" ||
     (order.items[0]?.price_cents === 0 && order.status !== "created");
 
-  const fmtTime = (o) => {
+  const fmtTime = (o: Order) => {
     const ms = getCreatedMs(o);
     if (!ms) return "";
     return new Intl.DateTimeFormat("fr-FR", {

@@ -1,17 +1,24 @@
 import React from "react";
 import { Search, Star, Plus, Check } from "lucide-react";
-import { formatPrice } from "../../lib/format.js";
-import { useCart } from "../../context/CartContext.jsx";
-import { useAuth } from "../../context/AuthContext.jsx";
-import Skeleton from "../../ui/Skeleton.jsx";
-import ProductModal from "./ProductModal.jsx";
-import { useCatalog } from "./hooks/useCatalog.js";
+import { formatPrice } from "../../lib/format";
+import { useCart } from "../../context/CartContext";
+import { useAuth } from "../../context/AuthContext";
+import Skeleton from "../../ui/Skeleton";
+import ProductModal from "./ProductModal";
+import { useCatalog } from "./hooks/useCatalog";
+import { Product } from "../../types"; // Import du type
 
-// Composant Bouton Animé
-function AddButton({ onClick, available }) {
+// Composant interne typé
+function AddButton({
+  onClick,
+  available,
+}: {
+  onClick: () => void;
+  available: boolean;
+}) {
   const [clicked, setClicked] = React.useState(false);
 
-  const handleClick = (e) => {
+  const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!available) return;
     setClicked(true);
@@ -41,7 +48,11 @@ function AddButton({ onClick, available }) {
   );
 }
 
-export default function Catalog({ products }) {
+interface CatalogProps {
+  products: Product[]; // Sécurisation ici : on attend une liste de produits
+}
+
+export default function Catalog({ products }: CatalogProps) {
   const { cart, addToCart } = useCart();
   const { user, userData, db } = useAuth();
 
@@ -63,7 +74,6 @@ export default function Catalog({ products }) {
     <div className="px-4 pb-4 min-h-full flex flex-col pt-2">
       {/* HEADER RECHERCHE & FILTRES */}
       <div className="mb-6 space-y-3">
-        {/* Barre de recherche (Style simplifié car elle n'est plus flottante) */}
         <div className="relative bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 transition-all">
           <div className="flex items-center px-4 py-3.5">
             <Search className="text-slate-400 w-5 h-5 mr-3" />
@@ -76,9 +86,8 @@ export default function Catalog({ products }) {
           </div>
         </div>
 
-        {/* Catégories */}
         <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 px-1">
-          {categories.map((cat) => (
+          {categories.map((cat: string) => (
             <button
               key={cat}
               onClick={() => setSelectedCategory(cat)}
@@ -117,10 +126,11 @@ export default function Catalog({ products }) {
                 </div>
               </div>
             ))
-          : filteredProducts.map((p) => {
+          : filteredProducts.map((p: Product) => {
               const qty = cart.find((i) => i.id === p.id)?.qty || 0;
               const available = p.is_available !== false;
-              const isFav = favorites.includes(p.id);
+              // @ts-ignore (favorites peut être undefined au début)
+              const isFav = favorites?.includes(p.id);
 
               return (
                 <div
@@ -140,7 +150,6 @@ export default function Catalog({ products }) {
                     </div>
                   )}
 
-                  {/* ÉTOILE FAVORIS */}
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -161,7 +170,7 @@ export default function Catalog({ products }) {
                       src={p.image}
                       alt={p.name}
                       className="w-full h-full object-contain drop-shadow-sm transition-transform duration-500 group-hover:scale-110 group-hover:-rotate-3 relative z-10"
-                      onError={(e) => (e.target.style.display = "none")}
+                      onError={(e) => (e.currentTarget.style.display = "none")}
                     />
                     {qty > 0 && (
                       <div className="absolute top-2 right-2 bg-teal-600 text-white text-xs font-black w-6 h-6 flex items-center justify-center rounded-full shadow-lg z-20 animate-in zoom-in ring-2 ring-white dark:ring-slate-900">
@@ -193,12 +202,13 @@ export default function Catalog({ products }) {
         product={selectedProduct}
         isOpen={!!selectedProduct}
         onClose={() => setSelectedProduct(null)}
-        onAdd={(p) => {
+        onAdd={(p: Product) => {
           addToCart(p);
           setSelectedProduct(null);
         }}
         onToggleFav={toggleFavorite}
-        isFav={selectedProduct && favorites.includes(selectedProduct.id)}
+        // @ts-ignore
+        isFav={selectedProduct && favorites?.includes(selectedProduct.id)}
         allProducts={products}
       />
 

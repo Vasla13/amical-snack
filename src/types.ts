@@ -1,14 +1,20 @@
 import { User } from "firebase/auth";
 import { Firestore } from "firebase/firestore";
 
-export interface CartItem {
+// Ajout de l'interface Product (c'est un CartItem sans la quantité)
+export interface Product {
   id: string;
   name: string;
   price_cents: number;
-  qty: number;
   category: string;
   image?: string;
   is_available?: boolean;
+  description?: string;
+}
+
+// CartItem étend Product en ajoutant la quantité
+export interface CartItem extends Product {
+  qty: number;
 }
 
 export interface Order {
@@ -25,9 +31,11 @@ export interface Order {
     | "expired"
     | "cash";
   items: CartItem[];
-  created_at: any;
+  created_at: any; // On garde 'any' pour le timestamp Firestore pour l'instant
   payment_method?: string;
   points_earned?: number;
+  paid_at?: any;
+  served_at?: any;
 }
 
 export interface UserProfile {
@@ -41,7 +49,7 @@ export interface UserProfile {
   points_history?: Record<string, number>;
   setup_complete?: boolean;
   fcmToken?: string;
-  bad_luck_count?: number; // Nouveau pour la roulette
+  bad_luck_count?: number;
 }
 
 // Context Types
@@ -55,7 +63,7 @@ export interface AuthContextType {
 
 export interface CartContextType {
   cart: CartItem[];
-  addToCart: (product: CartItem) => void;
+  addToCart: (product: Product | CartItem) => void; // Accepte les deux
   removeFromCart: (productId: string) => void;
   clearCart: () => void;
   createOrder: (
