@@ -1,4 +1,5 @@
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
+const { onSchedule } = require("firebase-functions/v2/scheduler"); // Nécessaire pour le leaderboard
 const { setGlobalOptions } = require("firebase-functions/v2/options");
 const admin = require("firebase-admin");
 
@@ -12,7 +13,7 @@ const db = admin.firestore();
 const ROULETTE_COST = 10;
 
 /**
- * Utilitaire : Choix pondéré sécurisé
+ * Utilitaire : Choix pondéré sécurisé pour la roulette
  */
 function getRandomWeightedItem(products, badLuckCount = 0) {
   const boostFactor = badLuckCount > 5 ? 3 : 1;
@@ -33,11 +34,20 @@ function getRandomWeightedItem(products, badLuckCount = 0) {
   return products[products.length - 1];
 }
 
+/**
+ * Utilitaire : Calcul des points à vie (pour le leaderboard)
+ */
+function calculateLifetimePoints(userData) {
+  const history = userData.points_history || {};
+  const sum = Object.values(history).reduce((acc, val) => acc + (val || 0), 0);
+  return sum > 0 ? sum : userData.points || 0;
+}
+
 // ---------------------------------------------------------
 // 🎰 FONCTION 1 : JOUER À LA ROULETTE (v2)
 // ---------------------------------------------------------
 exports.playRoulette = onCall(async (request) => {
-  // En v2, 'context' devient 'request'
+  // Vérification authentification
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Vous devez être connecté.");
   }
@@ -58,7 +68,7 @@ exports.playRoulette = onCall(async (request) => {
       throw new HttpsError("failed-precondition", "Points insuffisants.");
     }
 
-    // Récupération du stock
+    // Récupération du stock disponible
     const productsSnap = await db
       .collection("products")
       .where("is_available", "==", true)
@@ -74,14 +84,14 @@ exports.playRoulette = onCall(async (request) => {
       ...doc.data(),
     }));
 
-    // Logique du jeu
+    // Logique du jeu (Côté serveur pour éviter la triche)
     const winnerItem = getRandomWeightedItem(
       products,
       userData.bad_luck_count || 0
     );
     const isBigWin = (winnerItem.price_cents || 0) > 150;
 
-    // Mises à jour
+    // Mises à jour atomiques
     transaction.update(userRef, {
       points: currentPoints - ROULETTE_COST,
       bad_luck_count: isBigWin ? 0 : admin.firestore.FieldValue.increment(1),
@@ -107,6 +117,7 @@ exports.playRoulette = onCall(async (request) => {
       created_at: admin.firestore.FieldValue.serverTimestamp(),
     });
 
+    // Historique transaction
     const historyRef = userRef.collection("transactions").doc();
     transaction.set(historyRef, {
       type: "spend",
@@ -131,7 +142,6 @@ exports.buyShopItem = onCall(async (request) => {
     throw new HttpsError("unauthenticated", "Non connecté");
   }
 
-  // En v2, les données envoyées sont dans request.data
   const { productId } = request.data;
   const uid = request.auth.uid;
 
@@ -149,6 +159,7 @@ exports.buyShopItem = onCall(async (request) => {
     }
 
     const product = productDoc.data();
+    // Coût fixe pour l'instant (à adapter si besoin)
     const isRedBull = (product.name || "").toLowerCase().includes("red bull");
     const cost = isRedBull ? 15 : 15;
 
@@ -184,4 +195,69 @@ exports.buyShopItem = onCall(async (request) => {
 
     return { success: true };
   });
+});
+
+// ---------------------------------------------------------
+// 🏆 FONCTION 3 : CALCUL DU LEADERBOARD (Toutes les heures)
+// ---------------------------------------------------------
+// Cette fonction résout le problème de sécurité et de performance :
+// Elle génère un fichier JSON statique dans Firestore que le client peut lire
+// sans avoir accès à la liste complète des utilisateurs.
+exports.updateLeaderboard = onSchedule("every 60 minutes", async (event) => {
+  console.log("Début de la mise à jour du leaderboard...");
+
+  // 1. Récupérer tous les utilisateurs (Opération lourde faite 1 seule fois par heure côté serveur)
+  const usersSnap = await db.collection("users").get();
+
+  const currentMonthKey = new Date().toISOString().slice(0, 7); // Ex: "2023-10"
+
+  let globalLeaderboard = [];
+  let monthlyLeaderboard = [];
+
+  usersSnap.forEach((doc) => {
+    const data = doc.data();
+    // On ignore les admins et ceux sans nom public
+    if (data.role === "admin" || !data.displayName) return;
+
+    // Score Global
+    const totalPoints = calculateLifetimePoints(data);
+    if (totalPoints > 0) {
+      globalLeaderboard.push({
+        id: doc.id,
+        name: data.displayName,
+        score: totalPoints,
+        // On ne stocke PAS l'email ou d'autres données sensibles
+      });
+    }
+
+    // Score Mensuel
+    const monthlyPoints = data.points_history?.[currentMonthKey] || 0;
+    if (monthlyPoints > 0) {
+      monthlyLeaderboard.push({
+        id: doc.id,
+        name: data.displayName,
+        score: monthlyPoints,
+      });
+    }
+  });
+
+  // Tri décroissant
+  globalLeaderboard.sort((a, b) => b.score - a.score);
+  monthlyLeaderboard.sort((a, b) => b.score - a.score);
+
+  // On ne garde que le top 50 pour optimiser la lecture client
+  const top50Global = globalLeaderboard.slice(0, 50);
+  const top50Monthly = monthlyLeaderboard.slice(0, 50);
+
+  // 2. Écrire le résultat dans un document unique 'stats/leaderboard'
+  // Le client n'aura qu'à lire ce seul document.
+  await db.collection("stats").doc("leaderboard").set({
+    global: top50Global,
+    monthly: top50Monthly,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  console.log(
+    `Leaderboard mis à jour : ${top50Global.length} global, ${top50Monthly.length} mensuel.`
+  );
 });

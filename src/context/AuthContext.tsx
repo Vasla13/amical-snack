@@ -8,7 +8,7 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { auth, db } from "../config/firebase";
-import { ADMIN_EMAIL } from "../config/constants";
+// SUPPRIMÉ : import { ADMIN_EMAIL } from "../config/constants";
 import { AuthContextType, UserProfile } from "../types";
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -42,13 +42,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (currentUser) {
         // --- SÉCURITÉ : CUSTOM CLAIMS ---
         // On récupère le token décodé pour vérifier le claim 'admin'
-        // Note: Le claim doit être défini via un script serveur (Firebase Admin SDK)
         const tokenResult = await currentUser.getIdTokenResult();
         const hasAdminClaim = !!tokenResult.claims.admin;
 
-        // Fallback sur l'email constant si le claim n'est pas encore défini
-        const isEmailAdmin = currentUser.email === ADMIN_EMAIL;
-        setIsAdmin(hasAdminClaim || isEmailAdmin);
+        // Fallback sur l'email supprimé : On se fie uniquement au claim
+        setIsAdmin(hasAdminClaim);
 
         const userRef = doc(db, "users", currentUser.uid);
 
@@ -58,8 +56,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             await setDoc(userRef, {
               email: currentUser.email,
               displayName: currentUser.email?.split("@")[0] || "User",
-              role: isEmailAdmin ? "admin" : "user",
-              points: isEmailAdmin ? 9999 : 0,
+              role: hasAdminClaim ? "admin" : "user",
+              points: hasAdminClaim ? 9999 : 0,
               balance_cents: 0,
               created_at: serverTimestamp(),
               setup_complete: false,

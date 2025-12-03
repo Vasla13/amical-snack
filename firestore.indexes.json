@@ -1,0 +1,15 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "orders",
+      "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "created_at", "order": "DESCENDING" }]
+    },
+    {
+      "collectionGroup": "users",
+      "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "transactions.date", "order": "DESCENDING" }]
+    }
+  ],
+  "fieldOverrides": []
+}

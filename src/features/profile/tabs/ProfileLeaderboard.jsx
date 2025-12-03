@@ -1,19 +1,11 @@
-import React, { useMemo, useState } from "react";
-import { User, Trophy, Calendar, Crown, Medal, Sparkles } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { doc, onSnapshot } from "firebase/firestore"; // Import corrigé
+import { Trophy, Calendar, Crown, Medal, Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
 
-// Helper : Nettoyage des points
-const normalizePoints = (value) => {
-  if (value === undefined || value === null) return 0;
-  if (typeof value === "number") return value;
-  const str = String(value).replace(",", ".").trim();
-  const num = parseFloat(str);
-  return Number.isFinite(num) ? num : 0;
-};
-
-// Helper : Initiales
-const getInitials = (name) => {
-  return name
+// Helper : Initiales (inchangé)
+const getInitials = (name) =>
+  name
     ? name
         .split(" ")
         .map((n) => n[0])
@@ -21,44 +13,33 @@ const getInitials = (name) => {
         .toUpperCase()
         .slice(0, 2)
     : "?";
-};
-
 const fmtPoints = (p) =>
   Number(p || 0)
     .toFixed(2)
     .replace(/[.,]00$/, "");
 
-export default function ProfileLeaderboard({ users, uid }) {
+export default function ProfileLeaderboard({ db, uid }) {
+  const [leaderboardData, setLeaderboardData] = useState({
+    global: [],
+    monthly: [],
+  });
   const [timeframe, setTimeframe] = useState("month");
+  const [loading, setLoading] = useState(true);
 
-  const leaderboard = useMemo(() => {
-    const currentMonthKey = new Date().toISOString().slice(0, 7);
+  // CHARGEMENT OPTIMISÉ : On ne lit qu'un seul document
+  useEffect(() => {
+    if (!db) return;
+    const unsub = onSnapshot(doc(db, "stats", "leaderboard"), (docSnap) => {
+      if (docSnap.exists()) {
+        setLeaderboardData(docSnap.data());
+      }
+      setLoading(false);
+    });
+    return () => unsub();
+  }, [db]);
 
-    const list = (users || [])
-      .filter((u) => !!u.email && u.role !== "admin")
-      .map((u) => {
-        let score = 0;
-        if (timeframe === "month") {
-          score = normalizePoints(u.points_history?.[currentMonthKey]);
-        } else {
-          const history = u.points_history || {};
-          const historySum = Object.values(history).reduce(
-            (sum, val) => sum + normalizePoints(val),
-            0
-          );
-          score = historySum > 0 ? historySum : normalizePoints(u.points);
-        }
-        return {
-          id: u.id,
-          name: u.displayName || u.email.split("@")[0],
-          score: score,
-        };
-      });
-
-    list.sort((a, b) => b.score - a.score);
-    // On garde le top 50 pour la performance, mais on n'affiche que ceux qui ont des points
-    return list.filter((u) => u.score > 0).slice(0, 50);
-  }, [users, timeframe]);
+  const currentList =
+    timeframe === "month" ? leaderboardData.monthly : leaderboardData.global;
 
   // Animation des items
   const container = {
@@ -111,7 +92,7 @@ export default function ProfileLeaderboard({ users, uid }) {
         initial="hidden"
         animate="show"
       >
-        {leaderboard.length === 0 ? (
+        {!currentList || currentList.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-3 opacity-60">
             <Trophy size={48} strokeWidth={1} />
             <p className="text-sm font-medium">
@@ -119,7 +100,7 @@ export default function ProfileLeaderboard({ users, uid }) {
             </p>
           </div>
         ) : (
-          leaderboard.map((u, i) => {
+          currentList.map((u, i) => {
             const isMe = uid === u.id;
             const rank = i + 1;
 
@@ -168,7 +149,7 @@ export default function ProfileLeaderboard({ users, uid }) {
 
             return (
               <motion.div
-                key={u.id}
+                key={i} // on utilise l'index car l'id peut manquer si c'est une vieille version de fonction
                 variants={itemAnim}
                 className={`flex items-center justify-between p-3 rounded-2xl border ${cardStyle} transition-all`}
               >
