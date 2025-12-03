@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import confetti from "canvas-confetti";
-import { useFeedback } from "../../../hooks/useFeedback.js";
+import { useFeedback } from "../../../hooks/useFeedback";
 
 const COST = 10;
 const TOTAL_ITEMS = 80;
@@ -11,30 +11,52 @@ const ITEM_WIDTH = 120;
 const GAP = 12;
 const EASING = "cubic-bezier(0.15, 0.85, 0.25, 1)";
 
-function getRandomItemForVisual(items) {
+function getRandomItemForVisual(items: any[]) {
   if (!items || items.length === 0) return null;
   return items[Math.floor(Math.random() * items.length)];
 }
 
 function nextFrame() {
-  return new Promise((r) => requestAnimationFrame(() => r()));
+  return new Promise<void>((r) => requestAnimationFrame(() => r()));
 }
 
-export function useRouletteLogic({ user, products, notify }) {
+export function useRouletteLogic({ user, products, notify }: any) {
   const [gameState, setGameState] = useState("idle");
-  const [strip, setStrip] = useState([]);
-  const containerRef = useRef(null);
-  const stripRef = useRef(null);
-  const animationRef = useRef(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const stripRef = useRef<HTMLDivElement>(null);
+  const animationRef = useRef<Animation | null>(null);
   const mountedRef = useRef(false);
 
   const functions = getFunctions();
   const { trigger } = useFeedback();
 
   const availableProducts = useMemo(
-    () => (products || []).filter((p) => p && p.id && p.is_available !== false),
+    () =>
+      (products || []).filter(
+        (p: any) => p && p.id && p.is_available !== false
+      ),
     [products]
   );
+
+  // CORRECTION : Lazy initialization
+  const [strip, setStrip] = useState<any[]>(() => {
+    if (availableProducts.length > 0) {
+      return Array.from({ length: 15 }, () =>
+        getRandomItemForVisual(availableProducts)
+      );
+    }
+    return [];
+  });
+
+  useEffect(() => {
+    if (strip.length === 0 && availableProducts.length > 0) {
+      setStrip(
+        Array.from({ length: 15 }, () =>
+          getRandomItemForVisual(availableProducts)
+        )
+      );
+    }
+  }, [availableProducts.length]); // Dépendance simplifiée
 
   const canPlay =
     (user?.points || 0) >= COST &&
@@ -49,17 +71,7 @@ export function useRouletteLogic({ user, products, notify }) {
     };
   }, []);
 
-  useEffect(() => {
-    if (availableProducts.length > 0 && strip.length === 0) {
-      setStrip(
-        Array.from({ length: 15 }, () =>
-          getRandomItemForVisual(availableProducts)
-        )
-      );
-    }
-  }, [availableProducts, strip.length]);
-
-  const spin = async (onSuccess) => {
+  const spin = async (onSuccess: (winner: any) => void) => {
     if (!canPlay) return;
 
     setGameState("spinning");
@@ -67,23 +79,18 @@ export function useRouletteLogic({ user, products, notify }) {
 
     try {
       const playRouletteFn = httpsCallable(functions, "playRoulette");
-
-      // Bande temporaire
       const tempStrip = Array.from({ length: TOTAL_ITEMS }, () =>
         getRandomItemForVisual(availableProducts)
       );
       setStrip(tempStrip);
 
-      // Appel serveur
-      const result = await playRouletteFn();
+      const result: any = await playRouletteFn();
       const { winner } = result.data;
 
-      // Bande finale
       const finalStrip = [...tempStrip];
       finalStrip[WINNER_INDEX] = winner;
       setStrip(finalStrip);
 
-      // Animation (Délai augmenté pour la fluidité du 1er coup)
       setTimeout(async () => {
         if (!mountedRef.current) return;
 
@@ -135,8 +142,8 @@ export function useRouletteLogic({ user, products, notify }) {
         });
 
         if (onSuccess) onSuccess(winner);
-      }, 200); // 200ms de sécurité
-    } catch (err) {
+      }, 200);
+    } catch (err: any) {
       console.error(err);
       setGameState("idle");
       trigger("error");

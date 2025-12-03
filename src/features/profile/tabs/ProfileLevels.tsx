@@ -1,6 +1,7 @@
 import React, { useMemo } from "react";
 import { Trophy, Star, Crown, Zap } from "lucide-react";
 import { motion } from "framer-motion";
+import { UserProfile } from "../../../types";
 
 const LEVELS = [
   {
@@ -33,11 +34,12 @@ const LEVELS = [
   },
 ];
 
-export default function ProfileLevels({ user }) {
+export default function ProfileLevels({ user }: { user: UserProfile | null }) {
   const lifetimeScore = useMemo(() => {
     const history = user?.points_history || {};
+    // CORRECTION TS : Typage explicite des valeurs
     const sum = Object.values(history).reduce(
-      (acc, val) => acc + (typeof val === "number" ? val : 0),
+      (acc: number, val: any) => acc + (typeof val === "number" ? val : 0),
       0
     );
     return sum > 0 ? sum : user?.points || 0;
@@ -71,12 +73,7 @@ export default function ProfileLevels({ user }) {
             <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">
               Niveau Actuel
             </p>
-            <h2
-              className={`text-3xl font-black ${currentLevel.color.replace(
-                "text-",
-                "text-"
-              )}`}
-            >
+            <h2 className={`text-3xl font-black ${currentLevel.color}`}>
               {currentLevel.name}
             </h2>
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 font-medium">
@@ -98,7 +95,7 @@ export default function ProfileLevels({ user }) {
             <span>Progression</span>
             {nextLevel ? (
               <span>
-                {nextLevel.min - lifetimeScore.toFixed(0)} pts restants
+                {(nextLevel.min - lifetimeScore).toFixed(0)} pts restants
               </span>
             ) : (
               <span>Niveau Max !</span>

@@ -1,11 +1,20 @@
 import React, { useEffect, useState } from "react";
-import { doc, onSnapshot } from "firebase/firestore"; // Import corrigé
+import { doc, onSnapshot } from "firebase/firestore";
 import { Trophy, Calendar, Crown, Medal, Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
 
-// Helper : Initiales (inchangé)
-const getInitials = (name) =>
-  name
+// Helper : Nettoyage des points
+const normalizePoints = (value: any) => {
+  if (value === undefined || value === null) return 0;
+  if (typeof value === "number") return value;
+  const str = String(value).replace(",", ".").trim();
+  const num = parseFloat(str);
+  return Number.isFinite(num) ? num : 0;
+};
+
+// Helper : Initiales
+const getInitials = (name: string) => {
+  return name
     ? name
         .split(" ")
         .map((n) => n[0])
@@ -13,13 +22,24 @@ const getInitials = (name) =>
         .toUpperCase()
         .slice(0, 2)
     : "?";
-const fmtPoints = (p) =>
+};
+
+const fmtPoints = (p: any) =>
   Number(p || 0)
     .toFixed(2)
     .replace(/[.,]00$/, "");
 
-export default function ProfileLeaderboard({ db, uid }) {
-  const [leaderboardData, setLeaderboardData] = useState({
+export default function ProfileLeaderboard({
+  db,
+  uid,
+}: {
+  db: any;
+  uid: string;
+}) {
+  const [leaderboardData, setLeaderboardData] = useState<{
+    global: any[];
+    monthly: any[];
+  }>({
     global: [],
     monthly: [],
   });
@@ -31,7 +51,7 @@ export default function ProfileLeaderboard({ db, uid }) {
     if (!db) return;
     const unsub = onSnapshot(doc(db, "stats", "leaderboard"), (docSnap) => {
       if (docSnap.exists()) {
-        setLeaderboardData(docSnap.data());
+        setLeaderboardData(docSnap.data() as any);
       }
       setLoading(false);
     });
@@ -56,6 +76,20 @@ export default function ProfileLeaderboard({ db, uid }) {
     hidden: { opacity: 0, y: 10 },
     show: { opacity: 1, y: 0 },
   };
+
+  // AJOUT : Utilisation du loading
+  if (loading) {
+    return (
+      <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-sm h-[500px] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3 text-slate-400 animate-pulse">
+          <Trophy size={32} className="opacity-50" />
+          <p className="text-xs font-bold uppercase tracking-wider">
+            Chargement...
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col h-[500px]">
@@ -149,7 +183,7 @@ export default function ProfileLeaderboard({ db, uid }) {
 
             return (
               <motion.div
-                key={i} // on utilise l'index car l'id peut manquer si c'est une vieille version de fonction
+                key={i}
                 variants={itemAnim}
                 className={`flex items-center justify-between p-3 rounded-2xl border ${cardStyle} transition-all`}
               >

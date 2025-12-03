@@ -1,12 +1,33 @@
 import React from "react";
-import { formatPrice } from "../../../lib/format.js";
-import { TrendingUp, Award, DollarSign, ShoppingCart } from "lucide-react";
-import { useAdminStats } from "../hooks/useAdminStats.js"; // Import du hook
+import { formatPrice } from "../../../lib/format";
+import {
+  TrendingUp,
+  Award,
+  DollarSign,
+  ShoppingCart,
+  LucideIcon,
+} from "lucide-react";
+import { useAdminStats } from "../hooks/useAdminStats";
 
-export default function AdminStatsTab({ orders }) {
+// Interface pour les props du composant StatCard
+interface StatCardProps {
+  icon: LucideIcon;
+  label: string;
+  value: string | number;
+  colorClass: string;
+  sub?: string | number; // Optionnel
+}
+
+export default function AdminStatsTab({ orders }: { orders: any[] }) {
   const stats = useAdminStats(orders);
 
-  const StatCard = ({ icon: Icon, label, value, colorClass, sub }) => (
+  const StatCard = ({
+    icon: Icon,
+    label,
+    value,
+    colorClass,
+    sub,
+  }: StatCardProps) => (
     <div className="bg-white p-5 rounded-[1.2rem] shadow-sm border border-slate-100 flex flex-col justify-between h-32 relative overflow-hidden">
       <div
         className={`absolute -right-4 -top-4 w-20 h-20 rounded-full opacity-10 ${colorClass.replace(

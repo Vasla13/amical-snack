@@ -1,7 +1,17 @@
 import React from "react";
 import { Dices, Loader2, Sparkles, ChevronDown } from "lucide-react";
-import Button from "../../../ui/Button.jsx";
-import { useRouletteLogic } from "../hooks/useRouletteLogic.js";
+import Button from "../../../ui/Button";
+import { useRouletteLogic } from "../hooks/useRouletteLogic";
+import { Product, UserProfile } from "../../../types";
+
+interface RouletteGameProps {
+  user: UserProfile | null;
+  products: Product[];
+  db: any;
+  notify?: (msg: string, type: "success" | "error" | "info") => void;
+  onConfirm?: (opts: any) => void;
+  onGoToPass?: () => void;
+}
 
 export default function RouletteGame({
   user,
@@ -10,7 +20,7 @@ export default function RouletteGame({
   notify,
   onConfirm,
   onGoToPass,
-}) {
+}: RouletteGameProps) {
   const {
     gameState,
     strip,
@@ -22,10 +32,10 @@ export default function RouletteGame({
     ITEM_WIDTH,
     GAP,
     WINNER_INDEX,
-  } = useRouletteLogic({ user, products, db, notify });
+  } = useRouletteLogic({ user, products, notify });
 
   const handleSpinClick = () => {
-    spin((winnerItem) => {
+    spin((winnerItem: Product) => {
       if (onConfirm) {
         onConfirm({
           title: "🎉 C'EST GAGNÉ !",
@@ -38,7 +48,8 @@ export default function RouletteGame({
                     src={winnerItem?.image}
                     className="w-28 h-28 object-contain drop-shadow-md"
                     alt={winnerItem?.name}
-                    onError={(e) => (e.target.style.display = "none")}
+                    // CORRECTION TS : currentTarget
+                    onError={(e) => (e.currentTarget.style.display = "none")}
                   />
                 </div>
               </div>
@@ -112,7 +123,7 @@ export default function RouletteGame({
                 transform: "translate3d(0px,0px,0px)",
               }}
             >
-              {strip.map((item, index) => {
+              {strip.map((item: Product, index: number) => {
                 if (!item) return null;
                 const isWon = gameState === "won" && index === WINNER_INDEX;
 
@@ -131,7 +142,10 @@ export default function RouletteGame({
                         src={item.image}
                         alt={item.name}
                         className="w-14 h-14 object-contain drop-shadow-sm"
-                        onError={(e) => (e.target.style.display = "none")}
+                        // CORRECTION TS : currentTarget
+                        onError={(e) =>
+                          (e.currentTarget.style.display = "none")
+                        }
                       />
                     </div>
                     <p

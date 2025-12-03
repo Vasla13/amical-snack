@@ -6,9 +6,9 @@ import { useAuth } from "../../context/AuthContext";
 import Skeleton from "../../ui/Skeleton";
 import ProductModal from "./ProductModal";
 import { useCatalog } from "./hooks/useCatalog";
-import { Product } from "../../types"; // Import du type
+import { Product } from "../../types";
 
-// Composant interne typé
+// Composant Bouton Animé
 function AddButton({
   onClick,
   available,
@@ -49,7 +49,7 @@ function AddButton({
 }
 
 interface CatalogProps {
-  products: Product[]; // Sécurisation ici : on attend une liste de produits
+  products: Product[];
 }
 
 export default function Catalog({ products }: CatalogProps) {
@@ -74,6 +74,7 @@ export default function Catalog({ products }: CatalogProps) {
     <div className="px-4 pb-4 min-h-full flex flex-col pt-2">
       {/* HEADER RECHERCHE & FILTRES */}
       <div className="mb-6 space-y-3">
+        {/* Barre de recherche */}
         <div className="relative bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 transition-all">
           <div className="flex items-center px-4 py-3.5">
             <Search className="text-slate-400 w-5 h-5 mr-3" />
@@ -86,6 +87,7 @@ export default function Catalog({ products }: CatalogProps) {
           </div>
         </div>
 
+        {/* Catégories */}
         <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 px-1">
           {categories.map((cat: string) => (
             <button
@@ -129,7 +131,7 @@ export default function Catalog({ products }: CatalogProps) {
           : filteredProducts.map((p: Product) => {
               const qty = cart.find((i) => i.id === p.id)?.qty || 0;
               const available = p.is_available !== false;
-              // @ts-ignore (favorites peut être undefined au début)
+              // @ts-ignore
               const isFav = favorites?.includes(p.id);
 
               return (
@@ -150,11 +152,15 @@ export default function Catalog({ products }: CatalogProps) {
                     </div>
                   )}
 
+                  {/* ÉTOILE FAVORIS CORRIGÉE */}
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       toggleFavorite(p);
                     }}
+                    aria-label={
+                      isFav ? "Retirer des favoris" : "Ajouter aux favoris"
+                    }
                     className="absolute top-3 left-3 z-30 p-2 bg-white/60 dark:bg-black/30 backdrop-blur-md rounded-full text-slate-300 hover:text-yellow-400 transition-colors active:scale-90"
                   >
                     <Star
