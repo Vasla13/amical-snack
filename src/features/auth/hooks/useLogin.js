@@ -5,7 +5,8 @@ import {
   sendPasswordResetEmail,
 } from "firebase/auth";
 import { auth } from "../../../config/firebase.js";
-import { UHA_KV_RQ, ADMIN_EMAIL, APP_URL } from "../../../config/constants.js";
+// CORRECTION : On retire ADMIN_EMAIL de l'import
+import { UHA_KV_RQ, APP_URL } from "../../../config/constants.js";
 
 export function useLogin() {
   const [mode, setMode] = useState("magic");
@@ -27,7 +28,10 @@ export function useLogin() {
     clean();
     const mail = email.trim();
 
-    if (!UHA_KV_RQ.test(mail) && mail !== ADMIN_EMAIL) {
+    // CORRECTION : On vérifie uniquement la regex UHA.
+    // Si tu veux te connecter avec ton email hotmail, tu devras temporairement
+    // changer la regex dans src/config/constants.js ou désactiver ce bloc if.
+    if (!UHA_KV_RQ.test(mail)) {
       return setError("Veuillez utiliser une adresse universitaire (@uha.fr).");
     }
 
