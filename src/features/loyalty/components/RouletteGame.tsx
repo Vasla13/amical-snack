@@ -130,12 +130,12 @@ export default function RouletteGame({
                 return (
                   <div
                     key={`${item.id}-${index}`}
-                    className={`flex-shrink-0 relative rounded-2xl flex flex-col items-center justify-center transition-all duration-300 border ${
+                    className={`flex-shrink-0 relative rounded-2xl flex flex-col items-center justify-center transition-all duration-300 border h-[120px] ${
                       isWon
                         ? "bg-white dark:bg-slate-800 border-purple-500 dark:border-yellow-400 shadow-lg scale-105 z-10"
                         : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700/50 opacity-80"
                     }`}
-                    style={{ width: ITEM_WIDTH, height: 120 }}
+                    style={{ width: ITEM_WIDTH }}
                   >
                     <div className="relative mb-2">
                       <img

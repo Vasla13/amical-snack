@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Search, PackageX, PackageCheck, Trash2, Plus } from "lucide-react";
 import { useAdminStock } from "../hooks/useAdminStock.js";
-import Modal from "../../../ui/Modal.jsx"; // Import Modal
+import Modal from "../../../ui/Modal.jsx";
 
 export default function AdminStockTab({ db, products }) {
   const {
@@ -12,10 +12,9 @@ export default function AdminStockTab({ db, products }) {
     stockList,
     toggleAvailability,
     handleAddProduct,
-    handleDeleteProduct, // Cette fonction du hook fait le delete direct
+    handleDeleteProduct,
   } = useAdminStock(db, products);
 
-  // État pour la confirmation de suppression
   const [productToDelete, setProductToDelete] = useState(null);
 
   const requestDelete = (p) => {
@@ -24,14 +23,13 @@ export default function AdminStockTab({ db, products }) {
 
   const confirmDelete = async () => {
     if (productToDelete) {
-      await handleDeleteProduct(productToDelete.id); // On appelle la logique du hook
+      await handleDeleteProduct(productToDelete.id);
       setProductToDelete(null);
     }
   };
 
   return (
     <div className="space-y-4">
-      {/* Modale de confirmation suppression */}
       <Modal
         isOpen={!!productToDelete}
         title="Supprimer ce produit ?"
@@ -46,7 +44,6 @@ export default function AdminStockTab({ db, products }) {
         </p>
       </Modal>
 
-      {/* FORMULAIRE AJOUT (inchangé) */}
       <form
         onSubmit={handleAddProduct}
         className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 space-y-3"
@@ -78,6 +75,7 @@ export default function AdminStockTab({ db, products }) {
             onChange={(e) =>
               setNewProduct({ ...newProduct, category: e.target.value })
             }
+            aria-label="Catégorie du produit"
             className="p-2 border rounded-xl text-sm outline-none focus:border-teal-500 transition-colors bg-white"
           >
             <option value="Snacks">Snacks</option>
@@ -102,7 +100,6 @@ export default function AdminStockTab({ db, products }) {
         </button>
       </form>
 
-      {/* RECHERCHE */}
       <div className="relative">
         <Search
           className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
@@ -116,7 +113,6 @@ export default function AdminStockTab({ db, products }) {
         />
       </div>
 
-      {/* LISTE */}
       <div className="space-y-2 pb-20">
         {stockList.map((p) => (
           <div
@@ -174,7 +170,8 @@ export default function AdminStockTab({ db, products }) {
                 />
               </div>
               <button
-                onClick={() => requestDelete(p)} // Appel modifié
+                onClick={() => requestDelete(p)}
+                aria-label="Supprimer le produit"
                 className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors active:scale-90"
               >
                 <Trash2 size={18} />

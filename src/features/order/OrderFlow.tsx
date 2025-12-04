@@ -71,6 +71,7 @@ export default function OrderFlow({
 
           <button
             onClick={onClose}
+            aria-label="Fermer"
             className="p-2 rounded-full bg-white dark:bg-slate-800 hover:bg-gray-50 dark:hover:bg-slate-700 text-gray-600 dark:text-gray-300 shadow-sm border border-gray-100 dark:border-slate-700 transition-colors"
           >
             <X size={20} />

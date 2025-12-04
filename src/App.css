@@ -1,10 +1,11 @@
 /* src/App.css */
 #root {
   width: 100%;
+  
+  /* Astuce pour iOS (Safari & Chrome) - Doit être avant la version standard pour fallback ou inversement selon linter, ici on respecte le cascade standard -> override */
+  min-height: -webkit-fill-available;
   /* Fallback standard */
   min-height: 100vh;
-  /* Astuce pour iOS (Safari & Chrome) */
-  min-height: -webkit-fill-available;
   /* Standard moderne */
   min-height: 100dvh;
   
@@ -21,6 +22,6 @@ html {
 }
 
 body {
-  min-height: 100vh;
   min-height: -webkit-fill-available;
+  min-height: 100vh;
 }

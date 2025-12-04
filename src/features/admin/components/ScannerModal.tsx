@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-// CORRECTION : On importe 'Scanner' et non 'QrScanner' (changement de la librairie)
 import { Scanner } from "@yudiel/react-qr-scanner";
 import { X, Scan, Zap, ZapOff } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -11,7 +10,6 @@ export default function ScannerModal({ open, onClose, onScan }) {
   useEffect(() => {
     let timer;
     if (open) {
-      // Petit délai pour l'animation fluide
       timer = setTimeout(() => setCameraActive(true), 300);
     } else {
       setCameraActive(false);
@@ -20,8 +18,6 @@ export default function ScannerModal({ open, onClose, onScan }) {
     return () => clearTimeout(timer);
   }, [open]);
 
-  // Nouvelle méthode de gestion du scan pour la v2 de la librairie
-  // Elle renvoie un tableau d'objets, on prend le premier
   const handleScan = (detectedCodes) => {
     if (detectedCodes && detectedCodes.length > 0) {
       const code = detectedCodes[0].rawValue;
@@ -57,6 +53,7 @@ export default function ScannerModal({ open, onClose, onScan }) {
             </div>
             <button
               onClick={onClose}
+              aria-label="Fermer"
               className="p-2 rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors active:scale-95"
             >
               <X size={24} />
@@ -70,7 +67,6 @@ export default function ScannerModal({ open, onClose, onScan }) {
                 onScan={handleScan}
                 onError={handleError}
                 components={{
-                  audio: false,
                   torch: flash,
                   zoom: true,
                 }}
@@ -104,10 +100,7 @@ export default function ScannerModal({ open, onClose, onScan }) {
                 <div className="absolute inset-2 border-2 border-teal-500/30 rounded-2xl" />
 
                 {/* Laser scan */}
-                <div
-                  className="absolute inset-x-0 h-0.5 bg-teal-400/80 shadow-[0_0_15px_rgba(45,212,191,0.8)] animate-[scan_3s_ease-in-out_infinite_alternate]"
-                  style={{ top: "50%" }}
-                />
+                <div className="absolute inset-x-0 h-0.5 bg-teal-400/80 shadow-[0_0_15px_rgba(45,212,191,0.8)] animate-[scan_3s_ease-in-out_infinite_alternate] top-1/2" />
 
                 <div className="absolute -bottom-14 left-0 right-0 text-center">
                   <p className="text-white/90 text-xs font-bold bg-black/60 px-4 py-1.5 rounded-full inline-block backdrop-blur-md border border-white/10">

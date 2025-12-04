@@ -15,18 +15,15 @@ export default function ProductModal({
 }) {
   if (!product) return null;
 
-  // Intelligence : Recommandation (Cross-selling) Améliorée
   const recommendations = useMemo(() => {
     if (!allProducts || !product) return [];
 
     const cat = product.category;
     let targetCats = [];
 
-    // Logique croisée : Snack <-> Boissons
     if (cat === "Snacks" || cat === "Formules") {
       targetCats = ["Boissons", "Boissons Chaudes"];
     } else {
-      // C'est une boisson (chaude ou froide) -> on propose un snack
       targetCats = ["Snacks"];
     }
 
@@ -37,7 +34,7 @@ export default function ProductModal({
           p.id !== product.id &&
           p.is_available !== false
       )
-      .sort(() => 0.5 - Math.random()) // Shuffle simple
+      .sort(() => 0.5 - Math.random())
       .slice(0, 2);
   }, [product, allProducts]);
 
@@ -63,6 +60,9 @@ export default function ProductModal({
             <div className="flex justify-between items-start mb-4">
               <button
                 onClick={() => onToggleFav(product)}
+                aria-label={
+                  isFav ? "Retirer des favoris" : "Ajouter aux favoris"
+                }
                 className={`p-3 rounded-full transition-colors ${
                   isFav
                     ? "bg-yellow-50 text-yellow-500 dark:bg-yellow-900/20"
@@ -74,6 +74,7 @@ export default function ProductModal({
               <div className="w-12 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full mx-auto self-center opacity-50" />
               <button
                 onClick={onClose}
+                aria-label="Fermer"
                 className="p-2 bg-slate-100 dark:bg-slate-800 rounded-full text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
               >
                 <X size={20} />
@@ -83,13 +84,13 @@ export default function ProductModal({
             {/* Image & Infos */}
             <div className="flex flex-col items-center mb-6">
               <div className="w-48 h-48 flex items-center justify-center mb-4 relative">
-                {/* Lueur derrière l'image */}
                 <div className="absolute inset-0 bg-radial-gradient from-teal-500/10 to-transparent blur-2xl rounded-full" />
                 <img
                   src={product.image}
                   alt={product.name}
                   className="w-full h-full object-contain drop-shadow-xl relative z-10"
-                  onError={(e) => (e.target.style.display = "none")}
+                  // CORRECTION TS : currentTarget
+                  onError={(e) => (e.currentTarget.style.display = "none")}
                 />
               </div>
 
@@ -132,7 +133,6 @@ export default function ProductModal({
               </div>
             )}
 
-            {/* Actions */}
             <Button
               onClick={() => onAdd(product)}
               className="w-full text-lg py-4 shadow-xl shadow-teal-500/20"

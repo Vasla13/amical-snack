@@ -14,7 +14,9 @@ export function useAdminStats(orders) {
     );
 
     // 2. Best Seller
-    const productCounts = {};
+    // Typage explicite : Clé (nom produit) -> Valeur (nombre de ventes)
+    const productCounts: Record<string, number> = {};
+
     validOrders.forEach((o) => {
       o.items?.forEach((item) => {
         const name = item.name;

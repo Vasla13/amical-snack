@@ -32,6 +32,7 @@ export default function Toast({ msg, type = "info", onClose }) {
           </div>
           <button
             onClick={onClose}
+            aria-label="Fermer la notification"
             className="p-1 rounded-full hover:bg-white/20"
           >
             <X size={18} />

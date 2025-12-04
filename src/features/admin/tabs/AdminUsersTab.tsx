@@ -92,12 +92,14 @@ export default function AdminUsersTab({ db }) {
             <div className="flex gap-2">
               <button
                 onClick={() => openAction(u, "debit")}
+                aria-label="Retirer des points"
                 className="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center border border-rose-100 active:scale-90 transition-transform"
               >
                 <Minus size={16} />
               </button>
               <button
                 onClick={() => openAction(u, "credit")}
+                aria-label="Ajouter des points"
                 className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100 active:scale-90 transition-transform"
               >
                 <Plus size={16} />

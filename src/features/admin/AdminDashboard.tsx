@@ -8,7 +8,7 @@ import {
   CheckCircle2,
   BarChart2,
   RefreshCw,
-  Users, // IMPORT
+  Users,
 } from "lucide-react";
 import { collection, getDocs, deleteDoc, addDoc } from "firebase/firestore";
 import { SEED_PRODUCTS } from "../../data/seedProducts.js";
@@ -17,7 +17,7 @@ import AdminOrdersTab from "./tabs/AdminOrdersTab.jsx";
 import AdminHistoryTab from "./tabs/AdminHistoryTab.jsx";
 import AdminStockTab from "./tabs/AdminStockTab.jsx";
 import AdminStatsTab from "./tabs/AdminStatsTab.jsx";
-import AdminUsersTab from "./tabs/AdminUsersTab.jsx"; // IMPORT
+import AdminUsersTab from "./tabs/AdminUsersTab.jsx";
 import Modal from "../../ui/Modal.jsx";
 
 export default function AdminDashboard({ db, products, onLogout }) {
@@ -89,12 +89,14 @@ export default function AdminDashboard({ db, products, onLogout }) {
         <div className="flex items-center gap-2">
           <button
             onClick={requestSeed}
+            aria-label="Réinitialiser le stock"
             className="p-2 rounded-xl bg-slate-100 text-slate-500 hover:bg-red-50 hover:text-red-500 transition-colors"
           >
             <RefreshCw size={18} />
           </button>
           <button
             onClick={onLogout}
+            aria-label="Se déconnecter"
             className="p-2 rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors"
           >
             <LogOut size={18} />

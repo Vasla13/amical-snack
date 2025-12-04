@@ -9,13 +9,12 @@ import {
 } from "lucide-react";
 import { useAdminStats } from "../hooks/useAdminStats";
 
-// Interface pour les props du composant StatCard
 interface StatCardProps {
   icon: LucideIcon;
   label: string;
   value: string | number;
   colorClass: string;
-  sub?: string | number; // Optionnel
+  sub?: string | number;
 }
 
 export default function AdminStatsTab({ orders }: { orders: any[] }) {
@@ -105,7 +104,7 @@ export default function AdminStatsTab({ orders }: { orders: any[] }) {
             </span>
           </div>
           <div className="text-lg font-black text-slate-900 leading-tight">
-            {stats.bestSeller ? stats.bestSeller[0] : "—"}
+            {(stats.bestSeller ? stats.bestSeller[0] : "—") as React.ReactNode}
           </div>
         </div>
         <div className="bg-slate-100 px-4 py-2 rounded-xl text-center min-w-[70px]">

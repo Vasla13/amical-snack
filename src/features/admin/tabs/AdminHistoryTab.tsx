@@ -38,6 +38,7 @@ export default function AdminHistoryTab({ orders }) {
         <select
           value={historyFilter}
           onChange={(e) => setHistoryFilter(e.target.value)}
+          aria-label="Filtrer par statut"
           className="flex-1 p-2 rounded-lg border bg-white text-sm font-bold"
         >
           <option value="all">Tous</option>
