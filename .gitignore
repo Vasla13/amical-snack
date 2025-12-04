@@ -31,4 +31,4 @@ dist-ssr
 *.sw?
 
 # Clé privée Admin (NE JAMAIS COMMIT)
-scripts/service-account.json.json
+scripts/service-account.json

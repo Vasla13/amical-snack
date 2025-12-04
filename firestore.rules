@@ -28,14 +28,16 @@ service cloud.firestore {
         && request.resource.data.points == 0
         && request.resource.data.balance_cents == 0
         // On s'assure que l'email correspond au compte auth
-        && request.resource.data.email == request.auth.token.email;
+        && request.resource.data.email == request.auth.token.email
+        // SÉCURITÉ RENFORCÉE : On force le domaine @uha.fr côté serveur
+        && request.resource.data.email.matches('.*@uha[.]fr');
 
       // MODIFICATION : Interdiction de toucher aux champs sensibles
       allow update: if isOwner(userId) 
         && !request.resource.data.diff(resource.data).affectedKeys()
             .hasAny(['points', 'role', 'balance_cents', 'points_history', 'bad_luck_count']);
-
-      // Admin a tous les droits
+      
+      // Admin a tous les droits (écrasement ou suppression)
       allow write: if isAdmin();
     }
 
@@ -55,11 +57,11 @@ service cloud.firestore {
         && request.resource.data.points_earned == null
         // Vérification basique du total (optionnel mais recommandé)
         && request.resource.data.total_cents >= 0;
-
+      
       allow update: if isAdmin();
     }
     
-    // --- NOUVEAU : RÈGLE POUR LE LEADERBOARD AGGRÉGÉ ---
+    // --- RÈGLE POUR LE LEADERBOARD AGGRÉGÉ ---
     // Seul l'admin (ou la Cloud Function) peut écrire, tout le monde peut lire
     match /stats/leaderboard {
       allow read: if isAuthenticated();
