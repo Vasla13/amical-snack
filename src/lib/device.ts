@@ -1,7 +1,8 @@
 export function detectMobileOS() {
   const ua = navigator.userAgent || "";
+  // CORRECTION : Cast 'navigator' en 'any'
   const platform =
-    navigator.userAgentData?.platform || navigator.platform || "";
+    (navigator as any).userAgentData?.platform || navigator.platform || "";
 
   const isAndroid = /Android/i.test(ua);
   const isIOS =

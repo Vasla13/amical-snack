@@ -1,16 +1,20 @@
 import React, { useState } from "react";
 import { ShoppingBag, ChevronRight, Trash2 } from "lucide-react";
-import Button from "../../ui/Button.jsx";
-import { formatPrice } from "../../lib/format.js";
-import { useCart } from "../../context/CartContext.jsx";
+import Button from "../../ui/Button";
+import { formatPrice } from "../../lib/format";
+import { useCart } from "../../context/CartContext";
 import { useNavigate } from "react-router-dom";
-import Modal from "../../ui/Modal.jsx"; // 1. On importe le composant Modal
+import Modal from "../../ui/Modal";
+import { CartItem } from "../../types"; // Import du type
 
-export default function Cart({ notify }) {
+export default function Cart({
+  notify,
+}: {
+  notify: (msg: string, type: "success" | "error" | "info") => void;
+}) {
   const { cart, addToCart, removeFromCart, createOrder, clearCart } = useCart();
   const navigate = useNavigate();
 
-  // 2. On ajoute un état pour contrôler l'ouverture de la modale
   const [isClearModalOpen, setIsClearModalOpen] = useState(false);
 
   const handleValidate = () => {
@@ -23,12 +27,10 @@ export default function Cart({ notify }) {
     );
   };
 
-  // 3. Cette fonction ouvre juste la modale au lieu de faire window.confirm
   const requestClearCart = () => {
     setIsClearModalOpen(true);
   };
 
-  // 4. Cette fonction fait l'action réelle quand on clique sur "Confirmer" dans la modale
   const confirmClearCart = () => {
     clearCart();
     setIsClearModalOpen(false);
@@ -63,7 +65,6 @@ export default function Cart({ notify }) {
 
   return (
     <div className="p-4 flex flex-col h-full bg-slate-50 dark:bg-slate-950 transition-colors pb-24">
-      {/* 5. Intégration de la Modale personnalisée */}
       <Modal
         isOpen={isClearModalOpen}
         title="Vider le panier ?"
@@ -86,7 +87,8 @@ export default function Cart({ notify }) {
         </h2>
 
         <button
-          onClick={requestClearCart} // On appelle l'ouverture de la modale
+          onClick={requestClearCart}
+          aria-label="Vider le panier"
           className="p-2.5 bg-rose-50 dark:bg-rose-900/20 text-rose-500 dark:text-rose-400 rounded-xl hover:bg-rose-100 dark:hover:bg-rose-900/40 transition-colors active:scale-90"
           title="Vider le panier"
         >
@@ -96,7 +98,7 @@ export default function Cart({ notify }) {
 
       {/* Liste des articles */}
       <div className="flex-1 space-y-3 overflow-y-auto no-scrollbar pb-4">
-        {cart.map((p) => (
+        {cart.map((p: CartItem) => (
           <div
             key={p.id}
             className="flex justify-between items-center bg-white dark:bg-slate-900 p-4 rounded-[1.5rem] shadow-sm border border-slate-100 dark:border-slate-800"
@@ -107,7 +109,8 @@ export default function Cart({ notify }) {
                   src={p.image}
                   alt={p.name}
                   className="w-full h-full object-contain"
-                  onError={(e) => (e.target.style.display = "none")}
+                  // CORRECTION TS : currentTarget
+                  onError={(e) => (e.currentTarget.style.display = "none")}
                 />
               </div>
 

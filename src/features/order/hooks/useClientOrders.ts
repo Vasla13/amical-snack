@@ -1,16 +1,16 @@
 import { useState, useEffect } from "react";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
-import { useAuth } from "../../../context/AuthContext.jsx";
-import { useCart } from "../../../context/CartContext.jsx";
+import { useAuth } from "../../../context/AuthContext";
+import { useCart } from "../../../context/CartContext";
+import { Order, CartItem } from "../../../types"; // Import types
 
-export function useClientOrders(db) {
+export function useClientOrders(db: any) {
   const { userData: user } = useAuth();
   const { addToCart } = useCart();
-  const [orders, setOrders] = useState([]);
+  const [orders, setOrders] = useState<Order[]>([]); // Typage de l'état
   const [loading, setLoading] = useState(true);
 
-  // Recommander les mêmes articles
-  const handleReorder = (orderItems) => {
+  const handleReorder = (orderItems: CartItem[]) => {
     let count = 0;
     orderItems.forEach((item) => {
       for (let i = 0; i < (item.qty || 1); i++) {
@@ -28,8 +28,9 @@ export function useClientOrders(db) {
     const unsub = onSnapshot(
       q,
       (s) => {
+        // CORRECTION TS : Casting des données
         const loadedOrders = s.docs
-          .map((d) => ({ id: d.id, ...d.data() }))
+          .map((d) => ({ id: d.id, ...d.data() } as Order))
           .filter((o) =>
             [
               "created",
@@ -41,7 +42,7 @@ export function useClientOrders(db) {
             ].includes(o.status)
           )
           .sort((a, b) => {
-            // Tri décroissant par date
+            // TS reconnait maintenant created_at
             const tA = a.created_at?.toMillis ? a.created_at.toMillis() : 0;
             const tB = b.created_at?.toMillis ? b.created_at.toMillis() : 0;
             return tB - tA;

@@ -6,13 +6,14 @@ import {
   runTransaction,
 } from "firebase/firestore";
 import { Ticket } from "lucide-react";
-import { generateToken } from "../../../lib/token.js";
+import { generateToken } from "../../../lib/token";
+import { Product, UserProfile } from "../../../types";
 
 // TOUT À 15 POINTS
 const COST_STD = 15;
 const COST_REDBULL = 15;
 
-const normalizePoints = (value) => {
+const normalizePoints = (value: any) => {
   const num =
     typeof value === "string"
       ? Number(value.replace(",", ".").trim())
@@ -20,8 +21,22 @@ const normalizePoints = (value) => {
   return Number.isFinite(num) ? num : 0;
 };
 
-export default function PointsShop({ user, products, db, notify, onConfirm }) {
-  const buyDirect = async (product) => {
+interface PointsShopProps {
+  user: UserProfile | null;
+  products: Product[];
+  db: any;
+  notify: (msg: string, type: "success" | "error" | "info") => void;
+  onConfirm: (opts: any) => void;
+}
+
+export default function PointsShop({
+  user,
+  products,
+  db,
+  notify,
+  onConfirm,
+}: PointsShopProps) {
+  const buyDirect = async (product: Product) => {
     const isRedBull = (product.name || "").toLowerCase().includes("red bull");
     const cost = isRedBull ? COST_REDBULL : COST_STD;
 
@@ -33,6 +48,7 @@ export default function PointsShop({ user, products, db, notify, onConfirm }) {
       text: `Acheter ${product.name} pour ${cost} points ?`,
       onOk: async () => {
         try {
+          if (!user) return;
           const userRef = doc(db, "users", user.uid);
           const couponRef = doc(collection(db, "orders"));
 
@@ -58,7 +74,7 @@ export default function PointsShop({ user, products, db, notify, onConfirm }) {
           });
 
           notify("Coupon ajouté au Pass !", "success");
-        } catch (error) {
+        } catch (error: any) {
           notify(
             error?.message === "POINTS_LOW"
               ? "Points insuffisants"
@@ -96,7 +112,8 @@ export default function PointsShop({ user, products, db, notify, onConfirm }) {
                     src={p.image}
                     alt={p.name}
                     className="h-20 w-20 object-contain transition-transform group-hover:scale-110"
-                    onError={(e) => (e.target.style.display = "none")}
+                    // CORRECTION TS : currentTarget
+                    onError={(e) => (e.currentTarget.style.display = "none")}
                   />
                 </div>
                 <div className="font-bold text-xs leading-tight mb-3 line-clamp-1 text-gray-800 dark:text-gray-200">

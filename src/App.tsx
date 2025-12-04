@@ -24,33 +24,26 @@ import {
 } from "firebase/auth";
 import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
 
-import { auth, db } from "./config/firebase.js";
-import { useAuth } from "./context/AuthContext.tsx";
-import { ADMIN_EMAIL } from "./config/constants.js";
+import { auth, db } from "./config/firebase";
+import { useAuth } from "./context/AuthContext";
+// CORRECTION : Suppression de ADMIN_EMAIL
+// import { ADMIN_EMAIL } from "./config/constants";
 
-// Eager Loading
-import LoginScreen from "./features/auth/LoginScreen.jsx";
-import AuthAction from "./features/auth/AuthAction.jsx";
-import MainLayout from "./features/layout/MainLayout.jsx";
+import LoginScreen from "./features/auth/LoginScreen";
+import AuthAction from "./features/auth/AuthAction";
+import MainLayout from "./features/layout/MainLayout";
 
-// Lazy Loading
-const Catalog = lazy(() => import("./features/catalog/Catalog.jsx"));
-const Cart = lazy(() => import("./features/cart/Cart.jsx"));
-const PassScreen = lazy(() => import("./features/order/PassScreen.jsx"));
-const LoyaltyScreen = lazy(() =>
-  import("./features/loyalty/LoyaltyScreen.jsx")
-);
-const Profile = lazy(() => import("./features/profile/Profile.jsx"));
-const AdminDashboard = lazy(() =>
-  import("./features/admin/AdminDashboard.jsx")
-);
-const KitchenDisplay = lazy(() =>
-  import("./features/admin/KitchenDisplay.jsx")
-);
+const Catalog = lazy(() => import("./features/catalog/Catalog"));
+const Cart = lazy(() => import("./features/cart/Cart"));
+const PassScreen = lazy(() => import("./features/order/PassScreen"));
+const LoyaltyScreen = lazy(() => import("./features/loyalty/LoyaltyScreen"));
+const Profile = lazy(() => import("./features/profile/Profile"));
+const AdminDashboard = lazy(() => import("./features/admin/AdminDashboard"));
+const KitchenDisplay = lazy(() => import("./features/admin/KitchenDisplay"));
 
-import Button from "./ui/Button.jsx";
-import Toast from "./ui/Toast.jsx";
-import Modal from "./ui/Modal.jsx";
+import Toast from "./ui/Toast";
+import Modal from "./ui/Modal";
+import Button from "./ui/Button";
 
 const Loading = () => (
   <div className="h-full flex items-center justify-center p-10">
@@ -58,14 +51,11 @@ const Loading = () => (
   </div>
 );
 
-// --- CORRECTION : ProtectedRoute est défini ICI, en dehors de App ---
-// Cela empêche le démontage complet de l'application à chaque mise à jour des points
-const ProtectedRoute = ({ children }) => {
-  const { user, userData, isAdmin } = useAuth(); // On récupère le contexte ici
+const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+  const { user, userData, isAdmin } = useAuth();
 
   if (!user) return <Navigate to="/login" />;
 
-  // Attente du chargement du profil Firestore
   if (userData === null && !isAdmin)
     return (
       <div className="h-screen flex items-center justify-center">
@@ -78,16 +68,19 @@ const ProtectedRoute = ({ children }) => {
 
   if (userData && userData.role === "admin") return <Navigate to="/admin" />;
 
-  return children;
+  return <>{children}</>;
 };
 
 export default function App() {
   const { user, userData, loading: authLoading, isAdmin } = useAuth();
   const navigate = useNavigate();
 
-  const [products, setProducts] = useState([]);
-  const [toast, setToast] = useState(null);
-  const [modal, setModal] = useState(null);
+  const [products, setProducts] = useState<any[]>([]);
+  const [toast, setToast] = useState<{
+    msg: string;
+    type: "success" | "error" | "info";
+  } | null>(null);
+  const [modal, setModal] = useState<any>(null);
 
   const [isFinishingLogin, setIsFinishingLogin] = useState(false);
   const [emailForLink, setEmailForLink] = useState("");
@@ -97,16 +90,17 @@ export default function App() {
   const [newPassword, setNewPassword] = useState("");
   const [pwdLoading, setPwdLoading] = useState(false);
 
-  const userDataRef = useRef(null);
+  const userDataRef = useRef(userData);
   useEffect(() => {
     userDataRef.current = userData;
   }, [userData]);
 
   const notify = useCallback(
-    (msg, type = "info") => setToast({ msg, type }),
+    (msg: string, type: "success" | "error" | "info" = "info") =>
+      setToast({ msg, type }),
     []
   );
-  const confirmAction = (opts) => setModal(opts);
+  const confirmAction = (opts: any) => setModal(opts);
 
   useEffect(() => {
     if (isSignInWithEmailLink(auth, window.location.href)) {
@@ -121,7 +115,7 @@ export default function App() {
     }
   }, []);
 
-  const completeSignIn = async (email) => {
+  const completeSignIn = async (email: string) => {
     try {
       setIsFinishingLogin(true);
       await signInWithEmailLink(auth, email, window.location.href);
@@ -152,13 +146,14 @@ export default function App() {
     try {
       const currentUser = auth.currentUser;
       if (!currentUser) throw new Error("Session perdue.");
+      // @ts-ignore
       const credential = EmailAuthProvider.credential(
-        currentUser.email,
+        currentUser.email!,
         newPassword
       );
       try {
         await linkWithCredential(currentUser, credential);
-      } catch (err) {
+      } catch (err: any) {
         if (err.code === "auth/provider-already-linked") {
           await updatePassword(currentUser, newPassword);
         } else if (err.code === "auth/requires-recent-login") {
@@ -172,7 +167,7 @@ export default function App() {
         setup_complete: true,
       });
       notify("Compte configuré ! Bienvenue.", "success");
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
       notify("Erreur: " + e.message, "error");
     } finally {
@@ -185,7 +180,7 @@ export default function App() {
     navigate("/login");
   };
 
-  const payOrder = async (method, order) => {
+  const payOrder = async (method: string, order: any) => {
     const totalCents = Number(order.total_cents || 0);
     const pointsEarned = totalCents / 100;
     const currentMonthKey = new Date().toISOString().slice(0, 7);
@@ -193,9 +188,11 @@ export default function App() {
     if (method === "paypal_balance") {
       const balance = Number(userDataRef.current?.balance_cents || 0);
       if (balance < totalCents) return notify("Solde insuffisant.", "error");
-      await updateDoc(doc(db, "users", user.uid), {
-        balance_cents: balance - totalCents,
-      });
+      if (user) {
+        await updateDoc(doc(db, "users", user.uid), {
+          balance_cents: balance - totalCents,
+        });
+      }
     }
 
     await updateDoc(doc(db, "orders", order.id), {
@@ -206,22 +203,24 @@ export default function App() {
       points_earned: pointsEarned,
     });
 
-    await updateDoc(doc(db, "users", user.uid), {
-      points: increment(pointsEarned),
-      [`points_history.${currentMonthKey}`]: increment(pointsEarned),
-    });
+    if (user) {
+      await updateDoc(doc(db, "users", user.uid), {
+        points: increment(pointsEarned),
+        [`points_history.${currentMonthKey}`]: increment(pointsEarned),
+      });
 
-    await addDoc(collection(db, "users", user.uid, "transactions"), {
-      type: "earn",
-      amount: pointsEarned,
-      reason: `Commande #${order.qr_token}`,
-      date: serverTimestamp(),
-    });
+      await addDoc(collection(db, "users", user.uid, "transactions"), {
+        type: "earn",
+        amount: pointsEarned,
+        reason: `Commande #${order.qr_token}`,
+        date: serverTimestamp(),
+      });
+    }
 
     notify("Paiement validé ! Points gagnés.", "success");
   };
 
-  const requestCashPayment = async (order) => {
+  const requestCashPayment = async (order: any) => {
     await updateDoc(doc(db, "orders", order.id), {
       status: "cash",
       cash_requested_at: serverTimestamp(),
@@ -273,6 +272,7 @@ export default function App() {
         isOpen={!!modal}
         title={modal?.title}
         onConfirm={() => {
+          // @ts-ignore
           modal.onOk && modal.onOk();
           setModal(null);
         }}
@@ -407,7 +407,7 @@ export default function App() {
                     user={userData}
                     logout={handleLogout}
                     db={db}
-                    uid={user?.uid}
+                    uid={user?.uid || ""}
                     auth={auth}
                   />
                 </Suspense>
