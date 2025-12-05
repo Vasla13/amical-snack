@@ -24,7 +24,9 @@ export const db = getFirestore(app);
 if (typeof window !== "undefined") {
   // Pour tester en local, vous pouvez décommenter la ligne suivante.
   // Cela affichera un "Debug Token" dans la console du navigateur que vous pourrez ajouter dans la console Firebase.
-  // self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+
+  // @ts-ignore
+  self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
 
   try {
     initializeAppCheck(app, {
