@@ -4,7 +4,7 @@ import { db } from "../config/firebase";
 import { generateToken } from "../lib/token";
 import { useAuth } from "./AuthContext";
 import { useFeedback } from "../hooks/useFeedback";
-import { CartContextType, CartItem } from "../types";
+import { CartContextType, CartItem, Product } from "../types";
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
@@ -19,7 +19,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const { userData: user } = useAuth();
   const { trigger } = useFeedback();
 
-  const addToCart = (product: CartItem) => {
+  const addToCart = (product: Product | CartItem) => {
     if (product.is_available === false) return;
     trigger("click");
     setCart((prev) => {
@@ -29,7 +29,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           i.id === product.id ? { ...i, qty: i.qty + 1 } : i
         );
       }
-      return [...prev, { ...product, qty: 1 }];
+      // On convertit le Product en CartItem (qty: 1)
+      const newItem: CartItem = { ...product, qty: 1 };
+      return [...prev, newItem];
     });
   };
 

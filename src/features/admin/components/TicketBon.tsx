@@ -1,9 +1,10 @@
 import React, { useMemo } from "react";
 import { Printer } from "lucide-react";
-import { groupItems, methodLabel } from "../utils/orders.js";
-import { formatPrice } from "../../../lib/format.js";
+import { groupItems, methodLabel } from "../utils/orders"; // Extension retirée
+import { formatPrice } from "../../../lib/format";
+import { Order } from "../../../types";
 
-function openPrintTicket(order) {
+function openPrintTicket(order: Order) {
   const items = groupItems(order.items);
   const dateStr = new Intl.DateTimeFormat("fr-FR", {
     year: "numeric",
@@ -14,7 +15,7 @@ function openPrintTicket(order) {
   }).format(new Date());
 
   const lines = items
-    .map((it) => {
+    .map((it: any) => {
       const name = String(it.name || "")
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;");
@@ -79,10 +80,10 @@ function openPrintTicket(order) {
   w.document.close();
 }
 
-export default function TicketBon({ order }) {
+export default function TicketBon({ order }: { order: Order }) {
   const items = useMemo(() => groupItems(order.items), [order.items]);
   const totalQty = useMemo(
-    () => items.reduce((s, it) => s + (it.qty || 0), 0),
+    () => items.reduce((s: number, it: any) => s + (it.qty || 0), 0),
     [items]
   );
 
@@ -110,7 +111,7 @@ export default function TicketBon({ order }) {
       </div>
 
       <div className="mt-3 space-y-2">
-        {items.map((it, idx) => {
+        {items.map((it: any, idx: number) => {
           const qty = Number(it.qty || 0);
           const unit = Number(it.price_cents || 0);
           const sub = unit * qty;

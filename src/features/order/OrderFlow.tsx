@@ -1,8 +1,17 @@
 import React, { useMemo } from "react";
 import { CheckCircle2, Hourglass, Banknote, X, Gift } from "lucide-react";
-import { formatPrice } from "../../lib/format.js";
-import QRPanel from "./components/QRPanel.jsx";
-import PaymentMethods from "./components/PaymentMethods.jsx";
+import { formatPrice } from "../../lib/format";
+import QRPanel from "./components/QRPanel";
+import PaymentMethods from "./components/PaymentMethods";
+import { Order, UserProfile, CartItem } from "../../types";
+
+interface OrderFlowProps {
+  order: Order;
+  user: UserProfile | null;
+  onPay: (method: string) => void;
+  onRequestCash: () => void;
+  onClose: () => void;
+}
 
 export default function OrderFlow({
   order,
@@ -10,16 +19,20 @@ export default function OrderFlow({
   onPay,
   onRequestCash,
   onClose,
-}) {
+}: OrderFlowProps) {
   const itemsSummary = useMemo(() => {
     if (!order?.items) return [];
     const list = order.items;
-    const map = new Map();
+    const map = new Map<string, CartItem>();
+
     for (const it of list) {
       const key = it.id || it.name;
       const prev = map.get(key);
-      if (prev) map.set(key, { ...prev, qty: (prev.qty || 0) + (it.qty || 0) });
-      else map.set(key, { ...it });
+      if (prev) {
+        map.set(key, { ...prev, qty: (prev.qty || 0) + (it.qty || 0) });
+      } else {
+        map.set(key, { ...it });
+      }
     }
     return Array.from(map.values()).sort((a, b) => (b.qty || 0) - (a.qty || 0));
   }, [order]);

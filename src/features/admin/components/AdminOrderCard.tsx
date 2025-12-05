@@ -3,14 +3,12 @@ import { Banknote, Gift, Package } from "lucide-react";
 import TicketBon from "./TicketBon";
 import { formatPrice } from "../../../lib/format";
 import { getCreatedMs } from "../utils/orders";
-import { Order } from "../../../types"; // Import du type
+import { Order } from "../../../types";
 
-// Définition des Props du composant
 interface AdminOrderCardProps {
   order: Order;
   onServe: (orderId: string) => void;
   onConfirmCash: (order: Order) => void;
-  db?: any;
 }
 
 export default function AdminOrderCard({

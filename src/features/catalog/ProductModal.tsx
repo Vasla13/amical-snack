@@ -1,8 +1,19 @@
 import React, { useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, ShoppingCart, Star, Flame } from "lucide-react";
-import { formatPrice } from "../../lib/format.js";
-import Button from "../../ui/Button.jsx";
+import { formatPrice } from "../../lib/format";
+import Button from "../../ui/Button";
+import { Product } from "../../types";
+
+interface ProductModalProps {
+  product: Product | null;
+  isOpen: boolean;
+  onClose: () => void;
+  onAdd: (p: Product) => void;
+  onToggleFav: (p: Product) => void;
+  isFav: boolean;
+  allProducts: Product[];
+}
 
 export default function ProductModal({
   product,
@@ -12,14 +23,14 @@ export default function ProductModal({
   onToggleFav,
   isFav,
   allProducts,
-}) {
+}: ProductModalProps) {
   if (!product) return null;
 
   const recommendations = useMemo(() => {
     if (!allProducts || !product) return [];
 
     const cat = product.category;
-    let targetCats = [];
+    let targetCats: string[] = [];
 
     if (cat === "Snacks" || cat === "Formules") {
       targetCats = ["Boissons", "Boissons Chaudes"];
@@ -89,7 +100,6 @@ export default function ProductModal({
                   src={product.image}
                   alt={product.name}
                   className="w-full h-full object-contain drop-shadow-xl relative z-10"
-                  // CORRECTION TS : currentTarget
                   onError={(e) => (e.currentTarget.style.display = "none")}
                 />
               </div>

@@ -9,9 +9,10 @@ import {
 import { db } from "../../config/firebase";
 import { CheckCircle2, Clock, ChefHat } from "lucide-react";
 import { formatPrice } from "../../lib/format";
+import { Order } from "../../types";
 
 export default function KitchenDisplay() {
-  const [orders, setOrders] = useState([]);
+  const [orders, setOrders] = useState<Order[]>([]);
 
   useEffect(() => {
     // Écoute uniquement les commandes payées non servies
@@ -25,7 +26,7 @@ export default function KitchenDisplay() {
       const newOrders = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
-      }));
+      })) as Order[];
 
       // Détection de nouvelles commandes pour le son
       if (newOrders.length > orders.length && orders.length > 0) {
@@ -39,7 +40,7 @@ export default function KitchenDisplay() {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, []); // Retrait de 'orders' des deps pour éviter boucle infinie sur le son
 
   return (
     <div className="min-h-screen bg-slate-900 text-white p-6 font-sans">
@@ -71,12 +72,10 @@ export default function KitchenDisplay() {
                 </span>
                 <span className="bg-slate-700 px-3 py-1 rounded-lg text-sm font-bold text-slate-300 flex items-center gap-2">
                   <Clock size={14} />
-                  {order.paid_at
-                    ?.toDate()
-                    .toLocaleTimeString([], {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
+                  {order.paid_at?.toDate().toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
                 </span>
               </div>
 

@@ -9,24 +9,46 @@ import {
   BarChart2,
   RefreshCw,
   Users,
+  LucideIcon,
 } from "lucide-react";
-import { collection, getDocs, deleteDoc, addDoc } from "firebase/firestore";
-import { SEED_PRODUCTS } from "../../data/seedProducts.js";
-import { useAdminOrders } from "./hooks/useAdminOrders.js";
-import AdminOrdersTab from "./tabs/AdminOrdersTab.jsx";
-import AdminHistoryTab from "./tabs/AdminHistoryTab.jsx";
-import AdminStockTab from "./tabs/AdminStockTab.jsx";
-import AdminStatsTab from "./tabs/AdminStatsTab.jsx";
-import AdminUsersTab from "./tabs/AdminUsersTab.jsx";
-import Modal from "../../ui/Modal.jsx";
+import {
+  collection,
+  getDocs,
+  deleteDoc,
+  addDoc,
+  Firestore,
+} from "firebase/firestore";
+import { SEED_PRODUCTS } from "../../data/seedProducts"; // Extension .js retirée
+import { useAdminOrders } from "./hooks/useAdminOrders"; // Extension .js retirée
+import AdminOrdersTab from "./tabs/AdminOrdersTab";
+import AdminHistoryTab from "./tabs/AdminHistoryTab";
+import AdminStockTab from "./tabs/AdminStockTab";
+import AdminStatsTab from "./tabs/AdminStatsTab";
+import AdminUsersTab from "./tabs/AdminUsersTab";
+import Modal from "../../ui/Modal";
+import { Product } from "../../types";
 
-export default function AdminDashboard({ db, products, onLogout }) {
+interface AdminDashboardProps {
+  db: Firestore;
+  products: Product[];
+  onLogout: () => void;
+}
+
+export default function AdminDashboard({
+  db,
+  products,
+  onLogout,
+}: AdminDashboardProps) {
   const [adminTab, setAdminTab] = useState("orders");
-  const [feedback, setFeedback] = useState(null);
+  const [feedback, setFeedback] = useState<{
+    type: "success" | "error";
+    msg: string;
+  } | null>(null);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
 
   const { orders, loading, error, ORDER_TTL_MS } = useAdminOrders(db);
 
+  // Gestion d'erreur simplifiée
   if (error && !feedback) setFeedback({ type: "error", msg: error });
 
   const requestSeed = () => setIsResetModalOpen(true);
@@ -43,12 +65,20 @@ export default function AdminDashboard({ db, products, onLogout }) {
         });
       }
       setFeedback({ type: "success", msg: "Stock réinitialisé avec succès !" });
-    } catch (e) {
+    } catch (e: any) {
       setFeedback({ type: "error", msg: "Erreur seed: " + e.message });
     }
   };
 
-  const TabButton = ({ id, icon: Icon, label }) => (
+  const TabButton = ({
+    id,
+    icon: Icon,
+    label,
+  }: {
+    id: string;
+    icon: LucideIcon;
+    label: string;
+  }) => (
     <button
       onClick={() => setAdminTab(id)}
       className={`flex-shrink-0 px-4 py-2.5 rounded-full font-bold text-xs flex items-center gap-2 transition-all border ${
