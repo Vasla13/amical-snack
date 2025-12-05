@@ -217,6 +217,7 @@ export default function LoginScreen() {
 
               {/* Bouton Principal (Gros pour le pouce) */}
               <Button
+                type="submit"
                 disabled={loading}
                 className="w-full py-4 text-sm mt-2 shadow-xl shadow-teal-500/20 active:scale-[0.98]"
               >

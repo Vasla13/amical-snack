@@ -13,27 +13,19 @@ import {
 import OrderFlow from "./OrderFlow";
 import { formatPrice } from "../../lib/format";
 import { useClientOrders } from "./hooks/useClientOrders";
-import { Firestore } from "firebase/firestore";
+import { useOrderMutations } from "../../hooks/useOrderMutations";
+import { useFeedback } from "../../context/FeedbackContext";
 import { Order, CartItem } from "../../types";
 
-interface PassScreenProps {
-  db: Firestore;
-  onPay: (method: string, order: Order) => void;
-  onRequestCash: (order: Order) => void;
-}
-
-export default function PassScreen({
-  db,
-  onPay,
-  onRequestCash,
-}: PassScreenProps) {
+export default function PassScreen() {
   const location = useLocation();
+  const { notify } = useFeedback();
+  const { payOrder, requestCashPayment } = useOrderMutations();
+
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [autoOpenId, setAutoOpenId] = useState(location.state?.openOrderId);
 
-  // Utilisation du hook typé
-  const { orders, coupons, regularOrders, user, handleReorder } =
-    useClientOrders(db);
+  const { orders, coupons, regularOrders, user, handleReorder } = useClientOrders();
 
   useEffect(() => {
     if (autoOpenId && orders.length > 0) {
@@ -48,7 +40,25 @@ export default function PassScreen({
 
   const onReorderClick = (items: CartItem[]) => {
     const count = handleReorder(items);
-    alert(`${count} articles ajoutés au panier !`);
+    notify(`${count} articles ajoutés au panier !`, "info");
+  };
+
+  const handlePayment = async (method: string, order: Order) => {
+    try {
+      await payOrder(method, order);
+      notify("Paiement validé ! Vos points ont été ajoutés.", "success");
+    } catch (e: any) {
+      notify(e.message, "error");
+    }
+  };
+
+  const handleCashRequest = async (order: Order) => {
+    try {
+      await requestCashPayment(order);
+      notify("Votre demande de paiement en espèces a été envoyée au vendeur.", "info");
+    } catch (e: any) {
+      notify(e.message, "error");
+    }
   };
 
   if (selectedOrder) {
@@ -58,8 +68,8 @@ export default function PassScreen({
       <OrderFlow
         order={liveOrder}
         user={user}
-        onPay={(method: any) => onPay(method, liveOrder)}
-        onRequestCash={() => onRequestCash(liveOrder)}
+        onPay={(method: any) => handlePayment(method, liveOrder)}
+        onRequestCash={() => handleCashRequest(liveOrder)}
         onClose={() => setSelectedOrder(null)}
       />
     );

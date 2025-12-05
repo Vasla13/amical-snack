@@ -69,8 +69,20 @@ export function useLogin() {
     try {
       setLoading(true);
       await signInWithEmailAndPassword(auth, email, password);
-    } catch {
-      setError("Identifiants incorrects.");
+    } catch (err) {
+      console.error("Login Error:", err);
+      switch (err.code) {
+        case "auth/user-not-found":
+        case "auth/wrong-password":
+        case "auth/invalid-credential":
+          setError("Identifiants incorrects.");
+          break;
+        case "auth/too-many-requests":
+          setError("Compte bloqué temporairement. Réessayez plus tard.");
+          break;
+        default:
+          setError("Une erreur est survenue.");
+      }
     } finally {
       setLoading(false);
     }

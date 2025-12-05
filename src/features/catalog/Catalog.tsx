@@ -1,5 +1,14 @@
 import React from "react";
-import { Search, Star, Plus, Check } from "lucide-react";
+import {
+  Search,
+  Star,
+  Plus,
+  Check,
+  Coffee,
+  GlassWater,
+  Cookie,
+  Package,
+} from "lucide-react";
 import { formatPrice } from "../../lib/format";
 import { useCart } from "../../context/CartContext";
 import { useAuth } from "../../context/AuthContext";
@@ -89,26 +98,40 @@ export default function Catalog({ products }: CatalogProps) {
 
         {/* Catégories */}
         <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 px-1">
-          {categories.map((cat: string) => (
-            <button
-              key={cat}
-              onClick={() => setSelectedCategory(cat)}
-              className={`whitespace-nowrap px-4 py-2 rounded-xl text-xs font-bold transition-all active:scale-95 border ${
-                selectedCategory === cat
-                  ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900 border-slate-900 dark:border-white shadow-md"
-                  : "bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 border-slate-100 dark:border-slate-800 shadow-sm"
-              }`}
-            >
-              {cat === "Favoris" && (
+          {(() => {
+            const categoryIcons: { [key: string]: React.ReactNode } = {
+              Favoris: (
                 <Star
                   size={12}
                   className="inline mr-1.5 mb-0.5 text-yellow-400"
                   fill="currentColor"
                 />
-              )}
-              {cat}
-            </button>
-          ))}
+              ),
+              Boissons: (
+                <GlassWater size={12} className="inline mr-1.5 mb-0.5" />
+              ),
+              Snacks: <Cookie size={12} className="inline mr-1.5 mb-0.5" />,
+              Formules: <Package size={12} className="inline mr-1.5 mb-0.5" />,
+              "Boissons Chaudes": (
+                <Coffee size={12} className="inline mr-1.5 mb-0.5" />
+              ),
+            };
+
+            return categories.map((cat: string) => (
+              <button
+                key={cat}
+                onClick={() => setSelectedCategory(cat)}
+                className={`whitespace-nowrap px-4 py-2 rounded-xl text-xs font-bold transition-all active:scale-95 border flex items-center ${
+                  selectedCategory === cat
+                    ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900 border-slate-900 dark:border-white shadow-md"
+                    : "bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 border-slate-100 dark:border-slate-800 shadow-sm"
+                }`}
+              >
+                {categoryIcons[cat]}
+                {cat}
+              </button>
+            ));
+          })()}
         </div>
       </div>
 

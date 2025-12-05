@@ -11,8 +11,8 @@ import { useCart } from "../../../context/CartContext";
 import { Order, CartItem } from "../../../types";
 
 // On type explicitement db avec Firestore au lieu de 'any'
-export function useClientOrders(db: Firestore) {
-  const { userData: user } = useAuth();
+export function useClientOrders() {
+  const { userData: user, db } = useAuth();
   const { addToCart } = useCart();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
