@@ -1,13 +1,25 @@
 import { useState, useMemo, useEffect } from "react";
-import { doc, updateDoc, arrayUnion, arrayRemove } from "firebase/firestore";
+import {
+  doc,
+  updateDoc,
+  arrayUnion,
+  arrayRemove,
+  Firestore,
+} from "firebase/firestore";
+import { Product, UserProfile } from "../../../types";
+import { User } from "firebase/auth";
 
-export function useCatalog(products, user, userData, db) {
+export function useCatalog(
+  products: Product[],
+  user: User | null,
+  userData: UserProfile | null,
+  db: Firestore
+) {
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("Tout");
   const [loading, setLoading] = useState(true);
-  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
-  // Simulation d'un chargement pour l'UX
   useEffect(() => {
     if (products.length > 0) {
       const timer = setTimeout(() => setLoading(false), 800);
@@ -15,7 +27,6 @@ export function useCatalog(products, user, userData, db) {
     }
   }, [products]);
 
-  // Extraction des catégories uniques
   const categories = useMemo(() => {
     const cats = new Set(
       (products || []).map((p) => p.category).filter(Boolean)
@@ -25,7 +36,6 @@ export function useCatalog(products, user, userData, db) {
 
   const favorites = useMemo(() => userData?.favorites || [], [userData]);
 
-  // Logique de filtrage
   const filteredProducts = useMemo(() => {
     const q = search.trim().toLowerCase();
     return (products || []).filter((p) => {
@@ -40,8 +50,7 @@ export function useCatalog(products, user, userData, db) {
     });
   }, [products, search, selectedCategory, favorites]);
 
-  // Gestion des favoris
-  const toggleFavorite = async (product) => {
+  const toggleFavorite = async (product: Product) => {
     if (!user || !db) return;
     const ref = doc(db, "users", user.uid);
     const isFav = favorites.includes(product.id);

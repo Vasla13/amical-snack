@@ -10,20 +10,31 @@ import {
   CheckCircle2,
   RotateCcw,
 } from "lucide-react";
-import OrderFlow from "./OrderFlow.jsx";
-import { formatPrice } from "../../lib/format.js";
-import { useClientOrders } from "./hooks/useClientOrders.js"; // Import du hook
+import OrderFlow from "./OrderFlow";
+import { formatPrice } from "../../lib/format";
+import { useClientOrders } from "./hooks/useClientOrders";
+import { Firestore } from "firebase/firestore";
+import { Order, CartItem } from "../../types";
 
-export default function PassScreen({ db, onPay, onRequestCash }) {
+interface PassScreenProps {
+  db: Firestore;
+  onPay: (method: string, order: Order) => void;
+  onRequestCash: (order: Order) => void;
+}
+
+export default function PassScreen({
+  db,
+  onPay,
+  onRequestCash,
+}: PassScreenProps) {
   const location = useLocation();
-  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [autoOpenId, setAutoOpenId] = useState(location.state?.openOrderId);
 
-  // Utilisation du hook
+  // Utilisation du hook typé
   const { orders, coupons, regularOrders, user, handleReorder } =
     useClientOrders(db);
 
-  // Gestion de l'ouverture automatique après une commande
   useEffect(() => {
     if (autoOpenId && orders.length > 0) {
       const target = orders.find((o) => o.id === autoOpenId);
@@ -35,7 +46,7 @@ export default function PassScreen({ db, onPay, onRequestCash }) {
     }
   }, [orders, autoOpenId]);
 
-  const onReorderClick = (items) => {
+  const onReorderClick = (items: CartItem[]) => {
     const count = handleReorder(items);
     alert(`${count} articles ajoutés au panier !`);
   };
@@ -47,7 +58,7 @@ export default function PassScreen({ db, onPay, onRequestCash }) {
       <OrderFlow
         order={liveOrder}
         user={user}
-        onPay={(method) => onPay(method, liveOrder)}
+        onPay={(method: any) => onPay(method, liveOrder)}
         onRequestCash={() => onRequestCash(liveOrder)}
         onClose={() => setSelectedOrder(null)}
       />

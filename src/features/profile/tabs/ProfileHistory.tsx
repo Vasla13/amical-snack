@@ -1,24 +1,45 @@
 import React, { useEffect, useState } from "react";
-import { collection, query, orderBy, limit, getDocs } from "firebase/firestore";
+import {
+  collection,
+  query,
+  orderBy,
+  limit,
+  getDocs,
+  Firestore,
+} from "firebase/firestore";
 import { Clock, PlusCircle, MinusCircle } from "lucide-react";
-import { formatPrice } from "../../../lib/format";
+import { UserProfile } from "../../../types";
 
-export default function ProfileHistory({ db, user }) {
-  const [history, setHistory] = useState([]);
+interface Transaction {
+  id: string;
+  amount: number;
+  reason: string;
+  date: any; // Timestamp Firestore
+  type: "spend" | "earn";
+}
+
+interface ProfileHistoryProps {
+  db: Firestore;
+  user: UserProfile | null;
+}
+
+export default function ProfileHistory({ db, user }: ProfileHistoryProps) {
+  const [history, setHistory] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchHistory = async () => {
       if (!user?.uid) return;
       try {
-        // On cherche dans la sous-collection 'transactions' qu'on va créer lors des paiements/jeux
         const q = query(
           collection(db, "users", user.uid, "transactions"),
           orderBy("date", "desc"),
           limit(20)
         );
         const snap = await getDocs(q);
-        setHistory(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+        setHistory(
+          snap.docs.map((d) => ({ id: d.id, ...d.data() } as Transaction))
+        );
       } catch (e) {
         console.error("Erreur historique", e);
       } finally {
@@ -70,12 +91,10 @@ export default function ProfileHistory({ db, user }) {
               </div>
               <div className="text-xs text-slate-400">
                 {item.date?.toDate().toLocaleDateString()} •{" "}
-                {item.date
-                  ?.toDate()
-                  .toLocaleTimeString([], {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
+                {item.date?.toDate().toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
               </div>
             </div>
           </div>

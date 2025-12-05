@@ -1,16 +1,7 @@
 import React, { useEffect, useState } from "react";
-import { doc, onSnapshot } from "firebase/firestore";
+import { doc, onSnapshot, Firestore } from "firebase/firestore";
 import { Trophy, Calendar, Crown, Medal, Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
-
-// Helper : Nettoyage des points
-const normalizePoints = (value: any) => {
-  if (value === undefined || value === null) return 0;
-  if (typeof value === "number") return value;
-  const str = String(value).replace(",", ".").trim();
-  const num = parseFloat(str);
-  return Number.isFinite(num) ? num : 0;
-};
 
 // Helper : Initiales
 const getInitials = (name: string) => {
@@ -29,29 +20,38 @@ const fmtPoints = (p: any) =>
     .toFixed(2)
     .replace(/[.,]00$/, "");
 
+interface LeaderboardEntry {
+  id: string;
+  name: string;
+  score: number;
+}
+
+interface LeaderboardData {
+  global: LeaderboardEntry[];
+  monthly: LeaderboardEntry[];
+}
+
+interface ProfileLeaderboardProps {
+  db: Firestore;
+  uid: string;
+}
+
 export default function ProfileLeaderboard({
   db,
   uid,
-}: {
-  db: any;
-  uid: string;
-}) {
-  const [leaderboardData, setLeaderboardData] = useState<{
-    global: any[];
-    monthly: any[];
-  }>({
+}: ProfileLeaderboardProps) {
+  const [leaderboardData, setLeaderboardData] = useState<LeaderboardData>({
     global: [],
     monthly: [],
   });
-  const [timeframe, setTimeframe] = useState("month");
+  const [timeframe, setTimeframe] = useState<"month" | "all">("month");
   const [loading, setLoading] = useState(true);
 
-  // CHARGEMENT OPTIMISÉ : On ne lit qu'un seul document
   useEffect(() => {
     if (!db) return;
     const unsub = onSnapshot(doc(db, "stats", "leaderboard"), (docSnap) => {
       if (docSnap.exists()) {
-        setLeaderboardData(docSnap.data() as any);
+        setLeaderboardData(docSnap.data() as LeaderboardData);
       }
       setLoading(false);
     });
@@ -61,7 +61,6 @@ export default function ProfileLeaderboard({
   const currentList =
     timeframe === "month" ? leaderboardData.monthly : leaderboardData.global;
 
-  // Animation des items
   const container = {
     hidden: { opacity: 0 },
     show: {
@@ -77,7 +76,6 @@ export default function ProfileLeaderboard({
     show: { opacity: 1, y: 0 },
   };
 
-  // AJOUT : Utilisation du loading
   if (loading) {
     return (
       <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-sm h-[500px] flex items-center justify-center">
@@ -119,7 +117,7 @@ export default function ProfileLeaderboard({
         </div>
       </div>
 
-      {/* LISTE DÉFILANTE */}
+      {/* LISTE */}
       <motion.div
         className="flex-1 overflow-y-auto p-2 space-y-2 no-scrollbar scroll-smooth"
         variants={container}
@@ -138,7 +136,6 @@ export default function ProfileLeaderboard({
             const isMe = uid === u.id;
             const rank = i + 1;
 
-            // Styles spécifiques pour le TOP 3
             let cardStyle =
               "bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800";
             let rankIcon = (
@@ -175,7 +172,6 @@ export default function ProfileLeaderboard({
               textColor = "text-orange-800 dark:text-orange-200";
             }
 
-            // Surcharge si c'est moi (sauf si je suis 1er, on garde le gold)
             if (isMe && rank > 1) {
               cardStyle =
                 "bg-teal-50 dark:bg-teal-900/20 border-teal-200 dark:border-teal-800 ring-1 ring-teal-300 dark:ring-teal-700";
@@ -188,10 +184,7 @@ export default function ProfileLeaderboard({
                 className={`flex items-center justify-between p-3 rounded-2xl border ${cardStyle} transition-all`}
               >
                 <div className="flex items-center gap-3">
-                  {/* Rang */}
                   <div className="w-8 flex justify-center">{rankIcon}</div>
-
-                  {/* Avatar + Nom */}
                   <div className="flex items-center gap-3">
                     <div
                       className={`w-10 h-10 rounded-full flex items-center justify-center text-xs font-black shadow-sm ${
@@ -206,7 +199,6 @@ export default function ProfileLeaderboard({
                     >
                       {getInitials(u.name)}
                     </div>
-
                     <div className="flex flex-col">
                       <span
                         className={`text-sm font-bold truncate max-w-[120px] ${textColor}`}
@@ -221,8 +213,6 @@ export default function ProfileLeaderboard({
                     </div>
                   </div>
                 </div>
-
-                {/* Score */}
                 <div className="text-right pr-2">
                   <div className={`font-black text-base ${textColor}`}>
                     {fmtPoints(u.score)}
@@ -241,3 +231,4 @@ export default function ProfileLeaderboard({
     </div>
   );
 }
+  

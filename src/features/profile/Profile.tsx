@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import {
-  User,
+  User as UserIcon,
   Trophy,
   Medal,
   Settings,
@@ -13,13 +13,15 @@ import ProfileSettings from "./tabs/ProfileSettings";
 import ProfileLevels from "./tabs/ProfileLevels";
 import ProfileHistory from "./tabs/ProfileHistory";
 import { UserProfile } from "../../types";
+import { Firestore } from "firebase/firestore";
+import { Auth } from "firebase/auth";
 
 interface ProfileProps {
   user: UserProfile | null;
   logout: () => void;
-  db: any;
+  db: Firestore;
   uid: string;
-  auth: any;
+  auth: Auth;
 }
 
 export default function Profile({ user, logout, db, uid, auth }: ProfileProps) {
@@ -63,10 +65,11 @@ export default function Profile({ user, logout, db, uid, auth }: ProfileProps) {
             </p>
           </div>
           <div className="w-12 h-12 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-200">
-            <User size={24} strokeWidth={2} />
+            <UserIcon size={24} strokeWidth={2} />
           </div>
         </div>
 
+        {/* CARTE MEMBRE */}
         <div className="group relative w-full aspect-[1.586/1] rounded-[24px] transition-all duration-500 hover:scale-[1.02] shadow-2xl shadow-slate-200/50 dark:shadow-none">
           <div className="absolute inset-0 bg-white dark:bg-slate-900 rounded-[24px] overflow-hidden border border-slate-100 dark:border-slate-700">
             <div className="absolute top-0 right-0 w-64 h-64 bg-teal-500/10 dark:bg-teal-500/10 rounded-full blur-3xl -mr-16 -mt-16" />
@@ -79,6 +82,7 @@ export default function Profile({ user, logout, db, uid, auth }: ProfileProps) {
                   <div className="w-10 h-7 rounded-md bg-gradient-to-br from-yellow-200 to-yellow-400 border border-yellow-500/30 flex items-center justify-center shadow-sm">
                     <div className="w-8 h-5 border border-yellow-600/20 rounded-[2px]" />
                   </div>
+                  {/* Puce SVG simulant le sans contact */}
                   <svg
                     width="24"
                     height="24"
