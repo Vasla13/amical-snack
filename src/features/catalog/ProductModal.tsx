@@ -119,22 +119,24 @@ export default function ProductModal({
                   <Flame size={14} className="text-orange-500" /> Souvent acheté
                   avec
                 </h3>
-                <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1">
+                <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
                   {recommendations.map((rec) => (
                     <div
                       key={rec.id}
                       onClick={() => onAdd(rec)}
-                      className="flex-shrink-0 w-28 bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm text-center cursor-pointer active:scale-95 transition-transform"
+                      className="flex-shrink-0 w-28 bg-white dark:bg-slate-800 p-2 rounded-2xl border border-transparent dark:border-slate-700 text-center cursor-pointer active:scale-95 transition-all hover:shadow-md hover:-translate-y-1 hover:border-slate-200"
                     >
-                      <img
-                        src={rec.image}
-                        className="w-12 h-12 mx-auto object-contain mb-2"
-                        alt={rec.name}
-                      />
-                      <p className="text-[10px] font-bold text-slate-700 dark:text-slate-300 truncate w-full">
+                      <div className="w-full aspect-square bg-slate-100 dark:bg-slate-700/50 rounded-xl mb-2 flex items-center justify-center">
+                        <img
+                          src={rec.image}
+                          className="w-10 h-10 object-contain"
+                          alt={rec.name}
+                        />
+                      </div>
+                      <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate w-full">
                         {rec.name}
                       </p>
-                      <p className="text-[10px] font-bold text-teal-600 dark:text-teal-400 mt-0.5">
+                      <p className="text-xs font-semibold text-teal-500 dark:text-teal-400">
                         + {formatPrice(rec.price_cents)}
                       </p>
                     </div>

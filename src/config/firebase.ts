@@ -20,8 +20,7 @@ export const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 
-// --- SÉCURITÉ : INITIALISATION APP CHECK (DÉSACTIVÉ TEMPORAIREMENT) ---
-/*
+// --- SÉCURITÉ : INITIALISATION APP CHECK ---
 if (typeof window !== "undefined") {
   // Pour tester en local, vous pouvez décommenter la ligne suivante.
   // Cela affichera un "Debug Token" dans la console du navigateur que vous pourrez ajouter dans la console Firebase.
@@ -39,7 +38,6 @@ if (typeof window !== "undefined") {
     console.error("Erreur lors de l'initialisation d'App Check:", e);
   }
 }
-*/
 
 // --- GESTION NOTIFICATIONS (CORRECTION CRASH IOS) ---
 // Certaines webviews (ex: Google App sur iOS) bloquent les Service Workers.

@@ -6,25 +6,20 @@ import { useCart } from "../../context/CartContext";
 import { useNavigate } from "react-router-dom";
 import Modal from "../../ui/Modal";
 import { CartItem } from "../../types"; // Import du type
+import { useFeedback } from "../../context/FeedbackContext";
 
-export default function Cart({
-  notify,
-}: {
-  notify: (msg: string, type: "success" | "error" | "info") => void;
-}) {
+export default function Cart() {
+  const { notify } = useFeedback();
   const { cart, addToCart, removeFromCart, createOrder, clearCart } = useCart();
   const navigate = useNavigate();
 
   const [isClearModalOpen, setIsClearModalOpen] = useState(false);
 
   const handleValidate = () => {
-    createOrder(
-      (newOrderId) => {
-        notify("Commande créée !", "success");
-        navigate("/pass", { state: { openOrderId: newOrderId } });
-      },
-      (err) => notify(err, "error")
-    );
+    createOrder((newOrderId) => {
+      notify("Commande créée !", "success");
+      navigate("/pass", { state: { openOrderId: newOrderId } });
+    });
   };
 
   const requestClearCart = () => {

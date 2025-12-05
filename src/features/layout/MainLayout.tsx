@@ -45,22 +45,22 @@ export default function MainLayout() {
   const activeTab = currentPath === "/" ? "catalog" : currentPath.split("/")[1];
 
   return (
-    <div className="h-screen flex flex-col bg-slate-50 dark:bg-slate-950 max-w-md mx-auto relative font-sans text-slate-800 dark:text-slate-100 overflow-hidden sm:border-x border-slate-200 dark:border-slate-800 transition-colors duration-300">
+    <div className="h-screen flex flex-col bg-slate-50 dark:bg-slate-950 w-full sm:max-w-md sm:mx-auto relative font-sans text-slate-800 dark:text-slate-100 overflow-hidden sm:border-x border-slate-200 dark:border-slate-800 transition-colors duration-300">
       {/* HEADER FIXE */}
-      <header className="absolute top-0 left-0 right-0 z-50 px-5 py-4 flex justify-between items-center bg-white/60 dark:bg-slate-950/60 backdrop-blur-xl border-b border-slate-200/50 dark:border-slate-800/50 transition-colors shadow-sm">
+      <header className="absolute top-0 left-0 right-0 z-50 px-4 sm:px-5 py-3 flex justify-between items-center bg-white/60 dark:bg-slate-950/60 backdrop-blur-xl border-b border-slate-200/50 dark:border-slate-800/50 transition-colors">
         <div className="flex items-center gap-3">
           <div className="relative">
             <div className="absolute inset-0 bg-teal-500 rounded-full blur opacity-20"></div>
             <img
               src="/logo.png"
               alt="RT"
-              className="w-9 h-9 object-contain relative z-10"
+              className="w-8 h-8 sm:w-9 sm:h-9 object-contain relative z-10"
               // CORRECTION TS : currentTarget
               onError={(e) => (e.currentTarget.style.display = "none")}
             />
           </div>
           <div>
-            <h1 className="font-black text-lg text-slate-900 dark:text-white leading-none tracking-tight">
+            <h1 className="font-black text-base sm:text-lg text-slate-900 dark:text-white leading-none tracking-tight">
               AMICALE{" "}
               <span className="text-teal-600 dark:text-teal-400">R&T</span>
             </h1>
@@ -92,7 +92,7 @@ export default function MainLayout() {
         </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto pt-20 pb-28 px-1 scroll-smooth no-scrollbar bg-slate-50 dark:bg-slate-950">
+      <main className="flex-1 overflow-y-auto pt-20 pb-32 px-1 scroll-smooth no-scrollbar bg-slate-50 dark:bg-slate-950">
         <AnimatePresence mode="wait">
           <motion.div
             key={location.pathname}
@@ -107,12 +107,11 @@ export default function MainLayout() {
         </AnimatePresence>
       </main>
 
-      <nav className="absolute bottom-6 left-4 right-4 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border border-white/60 dark:border-slate-700 rounded-3xl p-2 z-40 shadow-[0_8px_30px_rgb(0,0,0,0.08)] dark:shadow-black/50 flex justify-between items-center transition-colors">
+      <nav className="absolute bottom-0 left-0 right-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-t border-slate-200/80 dark:border-slate-800 rounded-t-2xl p-2 pb-4 z-40 flex justify-around items-center transition-colors">
         <NavBtn
           icon={ShoppingBag}
           active={activeTab === "catalog"}
           onClick={() => navigate("/")}
-          // badge n'est plus obligatoire
         />
         <NavBtn
           icon={CreditCard}
@@ -120,17 +119,17 @@ export default function MainLayout() {
           onClick={() => navigate("/cart")}
           badge={totalItems}
         />
-        <div className="relative -top-6">
+        <div className="relative -top-5">
           <button
             onClick={() => navigate("/pass")}
             aria-label="Ouvrir le Pass"
-            className={`w-14 h-14 rounded-full flex items-center justify-center shadow-xl shadow-teal-500/30 transition-transform active:scale-90 ${
+            className={`w-16 h-16 rounded-full flex items-center justify-center shadow-lg shadow-teal-500/20 transition-transform active:scale-90 ${
               activeTab === "pass"
-                ? "bg-slate-800 dark:bg-white text-teal-400 dark:text-slate-900 ring-4 ring-white dark:ring-slate-900"
-                : "bg-teal-600 text-white ring-4 ring-white dark:ring-slate-900"
+                ? "bg-slate-800 dark:bg-white text-teal-400 dark:text-slate-900"
+                : "bg-teal-600 text-white"
             }`}
           >
-            <QrCode size={26} strokeWidth={2.5} />
+            <QrCode size={30} strokeWidth={2.5} />
           </button>
         </div>
         <NavBtn

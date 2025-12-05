@@ -3,25 +3,27 @@ import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { db } from "../config/firebase";
 import { generateToken } from "../lib/token";
 import { useAuth } from "./AuthContext";
-import { useFeedback } from "../hooks/useFeedback";
+import { useFeedback } from "./FeedbackContext"; // Correct import
 import { CartContextType, CartItem, Product } from "../types";
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export function useCart() {
   const context = useContext(CartContext);
-  if (!context) throw new Error("useCart doit être utilisé dans CartProvider");
+  if (!context) throw new Error("useCart must be used within a CartProvider");
   return context;
 }
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [cart, setCart] = useState<CartItem[]>([]);
   const { userData: user } = useAuth();
-  const { trigger } = useFeedback();
+  const { notify } = useFeedback(); // Correctly get notify
 
   const addToCart = (product: Product | CartItem) => {
-    if (product.is_available === false) return;
-    trigger("click");
+    if (product.is_available === false) {
+      notify(`${product.name} is out of stock`, "error");
+      return;
+    }
     setCart((prev) => {
       const existing = prev.find((i) => i.id === product.id);
       if (existing) {
@@ -29,14 +31,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           i.id === product.id ? { ...i, qty: i.qty + 1 } : i
         );
       }
-      // On convertit le Product en CartItem (qty: 1)
       const newItem: CartItem = { ...product, qty: 1 };
       return [...prev, newItem];
     });
   };
 
   const removeFromCart = (productId: string) => {
-    trigger("click");
     setCart((prev) =>
       prev
         .map((i) => (i.id === productId ? { ...i, qty: i.qty - 1 } : i))
@@ -46,15 +46,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const clearCart = () => setCart([]);
 
-  const createOrder = async (
-    onSuccess: (id: string) => void,
-    onError?: (msg: string) => void
-  ) => {
+  const createOrder = async (onSuccess: (id: string) => void) => {
     if (!cart.length || !user?.uid) return;
 
     const outOfStock = cart.find((i) => i.is_available === false);
     if (outOfStock) {
-      if (onError) onError(`Rupture : ${outOfStock.name}`);
+      notify(`Rupture : ${outOfStock.name}`, "error");
       return;
     }
 
@@ -70,10 +67,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         payment_method: null,
       });
       clearCart();
-      if (onSuccess) onSuccess(docRef.id);
+      onSuccess(docRef.id);
     } catch (e: any) {
       console.error(e);
-      if (onError) onError(e.message);
+      notify(e.message, "error");
     }
   };
 

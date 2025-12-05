@@ -73,47 +73,47 @@ export default function LoginScreen() {
 
   return (
     // 'min-h-dvh' pour gérer la barre d'adresse mobile correctement
-    <div className="min-h-dvh flex flex-col items-center justify-center p-6 bg-slate-50 font-sans relative overflow-hidden select-none">
+    <div className="min-h-dvh flex flex-col items-center justify-center p-4 sm:p-6 bg-slate-50 dark:bg-slate-950 font-sans relative overflow-hidden select-none">
       {/* Background allégé pour mobile (évite lag scroll) */}
-      <div className="absolute top-0 right-0 w-80 h-80 bg-teal-500/5 rounded-full blur-[80px] pointer-events-none" />
-      <div className="absolute bottom-0 left-0 w-64 h-64 bg-purple-500/5 rounded-full blur-[80px] pointer-events-none" />
+      <div className="absolute top-0 right-0 w-80 h-80 bg-teal-500/10 dark:bg-teal-500/5 rounded-full blur-[90px] pointer-events-none" />
+      <div className="absolute bottom-0 left-0 w-64 h-64 bg-purple-500/10 dark:bg-purple-500/5 rounded-full blur-[90px] pointer-events-none" />
 
       <div className="w-full max-w-sm relative z-10">
         {/* Header Compact */}
         <div className="flex flex-col items-center mb-8">
-          <div className="relative w-20 h-20 mb-3 drop-shadow-md">
+          <div className="relative w-20 h-20 mb-3 drop-shadow-lg">
             <img
               src="/logo.png"
               alt="Logo Amicale"
               className="w-full h-full object-contain"
             />
           </div>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight">
+          <h1 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
             AMICALE R&T
           </h1>
-          <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-1">
+          <p className="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-widest mt-1">
             Espace Membre
           </p>
         </div>
 
         {/* Carte Principale */}
-        <div className="bg-white rounded-[2rem] shadow-2xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
+        <div className="bg-white/80 dark:bg-slate-900/50 backdrop-blur-xl rounded-3xl shadow-xl border border-slate-200/50 dark:border-slate-800 overflow-hidden">
           {/* Onglets Tactiles */}
-          <div className="flex bg-slate-50/50 p-1.5 gap-1 border-b border-slate-100">
+          <div className="flex bg-slate-100/50 dark:bg-slate-800/30 p-1.5 gap-1 border-b border-slate-200/50 dark:border-slate-800">
             {["magic", "password"].map((m) => (
               <button
                 key={m}
                 onClick={() => setMode(m)}
-                className={`flex-1 py-3 rounded-xl text-xs font-bold transition-all relative z-0 ${
+                className={`flex-1 py-3 rounded-lg text-xs font-bold transition-all relative z-0 ${
                   mode === m
-                    ? "text-teal-700 shadow-sm"
-                    : "text-slate-400 hover:text-slate-600"
+                    ? "text-teal-700 dark:text-white"
+                    : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
                 }`}
               >
                 {mode === m && (
                   <motion.div
                     layoutId="tab-bg"
-                    className="absolute inset-0 bg-white rounded-xl border border-slate-200/50 -z-10"
+                    className="absolute inset-0 bg-white dark:bg-slate-800/80 rounded-lg shadow-sm border border-slate-200/80 dark:border-slate-700 -z-10"
                     transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
                   />
                 )}
@@ -138,7 +138,7 @@ export default function LoginScreen() {
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, height: 0 }}
-                    className="p-3 bg-red-50 text-red-600 text-xs font-bold rounded-xl border border-red-100 text-center"
+                    className="p-3 bg-red-50 text-red-700 text-xs font-bold rounded-xl border border-red-200 text-center"
                   >
                     {error}
                   </motion.div>
@@ -148,7 +148,7 @@ export default function LoginScreen() {
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, height: 0 }}
-                    className="p-3 bg-emerald-50 text-emerald-600 text-xs font-bold rounded-xl border border-emerald-100 flex items-center justify-center gap-2"
+                    className="p-3 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-xl border border-emerald-200 flex items-center justify-center gap-2"
                   >
                     <CheckCircle2 size={16} /> {successMsg}
                   </motion.div>
@@ -157,11 +157,11 @@ export default function LoginScreen() {
 
               {/* Champ Email */}
               <div className="space-y-1.5">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider ml-3">
+                <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-3">
                   Email Universitaire
                 </label>
                 <div className="relative group">
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-teal-500 transition-colors">
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-teal-500 transition-colors">
                     <Mail size={20} />
                   </div>
                   {/* text-base important pour éviter le zoom iOS */}
@@ -170,7 +170,7 @@ export default function LoginScreen() {
                     inputMode="email"
                     required
                     placeholder="prenom.nom@uha.fr"
-                    className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-base font-bold text-slate-800 outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all placeholder:text-slate-300"
+                    className="w-full pl-12 pr-4 py-4 bg-slate-100/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-2xl text-base font-bold text-slate-800 dark:text-slate-200 outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-all placeholder:text-slate-400"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                   />
@@ -186,18 +186,18 @@ export default function LoginScreen() {
                     exit={{ opacity: 0, height: 0 }}
                     className="space-y-1 overflow-hidden"
                   >
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider ml-3">
+                    <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-3">
                       Mot de passe
                     </label>
                     <div className="relative group">
-                      <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-teal-500 transition-colors">
+                      <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-teal-500 transition-colors">
                         <KeyRound size={20} />
                       </div>
                       <input
                         type="password"
                         required
                         placeholder="••••••••"
-                        className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-base font-bold text-slate-800 outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all placeholder:text-slate-300"
+                        className="w-full pl-12 pr-4 py-4 bg-slate-100/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-2xl text-base font-bold text-slate-800 dark:text-slate-200 outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-all placeholder:text-slate-400"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                       />
@@ -206,7 +206,7 @@ export default function LoginScreen() {
                       <button
                         type="button"
                         onClick={handleForgot}
-                        className="text-[10px] font-bold text-slate-400 hover:text-teal-600 transition-colors p-1"
+                        className="text-[11px] font-bold text-slate-500 dark:text-slate-400 hover:text-teal-600 dark:hover:text-teal-400 transition-colors p-1"
                       >
                         Mot de passe oublié ?
                       </button>
@@ -232,7 +232,7 @@ export default function LoginScreen() {
                 )}
               </Button>
 
-              <p className="text-center text-[10px] text-slate-400 font-medium leading-relaxed px-2">
+              <p className="text-center text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed px-2">
                 {mode === "magic"
                   ? "Nous vous enverrons un email pour vous connecter instantanément."
                   : "Connexion classique avec votre mot de passe."}
