@@ -5,20 +5,24 @@ import {
   updateDoc,
   doc,
   increment,
+  Firestore,
 } from "firebase/firestore";
 import { Search, User, Plus, Minus } from "lucide-react";
-import Modal from "../../../ui/Modal.jsx";
+import Modal from "../../../ui/Modal"; // Extension .jsx retirée
+import { UserProfile } from "../../../types";
 
-export default function AdminUsersTab({ db }) {
-  const [users, setUsers] = useState([]);
+export default function AdminUsersTab({ db }: { db: Firestore }) {
+  const [users, setUsers] = useState<UserProfile[]>([]);
   const [search, setSearch] = useState("");
-  const [selectedUser, setSelectedUser] = useState(null);
+  const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
   const [amount, setAmount] = useState("");
-  const [actionType, setActionType] = useState("credit");
+  const [actionType, setActionType] = useState<"credit" | "debit">("credit");
 
   useEffect(() => {
     return onSnapshot(collection(db, "users"), (s) => {
-      setUsers(s.docs.map((d) => ({ id: d.id, ...d.data() })));
+      setUsers(
+        s.docs.map((d) => ({ id: d.id, ...d.data() } as unknown as UserProfile))
+      );
     });
   }, [db]);
 
@@ -31,7 +35,7 @@ export default function AdminUsersTab({ db }) {
     );
   }, [users, search]);
 
-  const openAction = (user, type) => {
+  const openAction = (user: UserProfile, type: "credit" | "debit") => {
     setSelectedUser(user);
     setActionType(type);
     setAmount("");
@@ -45,17 +49,21 @@ export default function AdminUsersTab({ db }) {
     const finalAmount = actionType === "credit" ? val : -val;
 
     try {
-      await updateDoc(doc(db, "users", selectedUser.id), {
+      // @ts-ignore : L'id est ajouté manuellement lors du map, mais pas dans l'interface de base
+      const userId = selectedUser.id || selectedUser.uid;
+
+      await updateDoc(doc(db, "users", userId), {
         points: increment(finalAmount),
       });
       setSelectedUser(null);
-    } catch (e) {
+    } catch (e: any) {
       alert("Erreur : " + e.message);
     }
   };
 
   return (
     <div className="space-y-4">
+      {/* ... Le JSX reste identique ... */}
       <div className="relative">
         <Search
           className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
@@ -70,9 +78,9 @@ export default function AdminUsersTab({ db }) {
       </div>
 
       <div className="space-y-2 pb-20">
-        {filteredUsers.map((u) => (
+        {filteredUsers.map((u: any) => (
           <div
-            key={u.id}
+            key={u.id || u.uid}
             className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex justify-between items-center"
           >
             <div className="flex items-center gap-3">

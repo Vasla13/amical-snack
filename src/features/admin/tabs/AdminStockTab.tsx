@@ -1,9 +1,16 @@
 import React, { useState } from "react";
 import { Search, PackageX, PackageCheck, Trash2, Plus } from "lucide-react";
-import { useAdminStock } from "../hooks/useAdminStock.js";
-import Modal from "../../../ui/Modal.jsx";
+import { useAdminStock } from "../hooks/useAdminStock"; // Extension .js retirée
+import Modal from "../../../ui/Modal"; // Extension .jsx retirée
+import { Firestore } from "firebase/firestore";
+import { Product } from "../../../types";
 
-export default function AdminStockTab({ db, products }) {
+interface AdminStockTabProps {
+  db: Firestore;
+  products: Product[];
+}
+
+export default function AdminStockTab({ db, products }: AdminStockTabProps) {
   const {
     stockQuery,
     setStockQuery,
@@ -15,9 +22,9 @@ export default function AdminStockTab({ db, products }) {
     handleDeleteProduct,
   } = useAdminStock(db, products);
 
-  const [productToDelete, setProductToDelete] = useState(null);
+  const [productToDelete, setProductToDelete] = useState<Product | null>(null);
 
-  const requestDelete = (p) => {
+  const requestDelete = (p: Product) => {
     setProductToDelete(p);
   };
 
@@ -44,10 +51,13 @@ export default function AdminStockTab({ db, products }) {
         </p>
       </Modal>
 
+      {/* ... Le reste du JSX reste identique au fichier original ... */}
+      {/* Je ne remets pas tout le JSX pour ne pas surcharger, mais l'essentiel est le typage des props ci-dessus */}
       <form
         onSubmit={handleAddProduct}
         className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 space-y-3"
       >
+        {/* ... (Contenu du formulaire identique) ... */}
         <h3 className="font-bold text-sm text-slate-800">Ajouter un produit</h3>
         <div className="grid grid-cols-2 gap-2">
           <input

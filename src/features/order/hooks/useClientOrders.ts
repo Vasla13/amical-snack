@@ -1,13 +1,20 @@
 import { useState, useEffect } from "react";
-import { collection, query, where, onSnapshot } from "firebase/firestore";
+import {
+  collection,
+  query,
+  where,
+  onSnapshot,
+  Firestore,
+} from "firebase/firestore";
 import { useAuth } from "../../../context/AuthContext";
 import { useCart } from "../../../context/CartContext";
-import { Order, CartItem } from "../../../types"; // Import types
+import { Order, CartItem } from "../../../types";
 
-export function useClientOrders(db: any) {
+// On type explicitement db avec Firestore au lieu de 'any'
+export function useClientOrders(db: Firestore) {
   const { userData: user } = useAuth();
   const { addToCart } = useCart();
-  const [orders, setOrders] = useState<Order[]>([]); // Typage de l'état
+  const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
 
   const handleReorder = (orderItems: CartItem[]) => {
@@ -24,13 +31,17 @@ export function useClientOrders(db: any) {
   useEffect(() => {
     if (!user?.uid) return;
 
+    // Requête typée
     const q = query(collection(db, "orders"), where("user_id", "==", user.uid));
+
     const unsub = onSnapshot(
       q,
       (s) => {
-        // CORRECTION TS : Casting des données
         const loadedOrders = s.docs
-          .map((d) => ({ id: d.id, ...d.data() } as Order))
+          .map((d) => {
+            // Casting des données Firestore vers notre interface Order
+            return { id: d.id, ...d.data() } as Order;
+          })
           .filter((o) =>
             [
               "created",
@@ -42,11 +53,12 @@ export function useClientOrders(db: any) {
             ].includes(o.status)
           )
           .sort((a, b) => {
-            // TS reconnait maintenant created_at
+            // TypeScript reconnaît maintenant toMillis() car created_at est de type Timestamp
             const tA = a.created_at?.toMillis ? a.created_at.toMillis() : 0;
             const tB = b.created_at?.toMillis ? b.created_at.toMillis() : 0;
             return tB - tA;
           });
+
         setOrders(loadedOrders);
         setLoading(false);
       },

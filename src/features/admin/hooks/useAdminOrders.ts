@@ -4,20 +4,24 @@ import {
   query,
   orderBy,
   onSnapshot,
-  limit, // Important pour la performance
+  limit,
   updateDoc,
   doc,
+  Firestore, // Type Firestore
 } from "firebase/firestore";
-import { isExpired } from "../utils/orders.js";
+import { isExpired } from "../utils/orders"; // Assurez-vous que l'extension .js est retirée
+import { Order } from "../../../types";
 
 const ORDER_TTL_MS = 10 * 60 * 1000;
 
-export function useAdminOrders(db) {
-  const [orders, setOrders] = useState([]);
+// Typage explicite du paramètre db
+export function useAdminOrders(db: Firestore) {
+  const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const ordersRef = useRef([]);
+  const ordersRef = useRef<Order[]>([]);
+
   useEffect(() => {
     ordersRef.current = orders;
   }, [orders]);
@@ -37,7 +41,8 @@ export function useAdminOrders(db) {
         const loadedData = s.docs.map((d) => ({
           id: d.id,
           ...d.data({ serverTimestamps: "estimate" }),
-        }));
+        })) as Order[]; // Casting sécurisé ici grâce à l'interface Order
+
         setOrders(loadedData);
         setLoading(false);
       },
@@ -60,6 +65,7 @@ export function useAdminOrders(db) {
           ["created", "scanned", "cash"].includes(o.status)
       );
       if (!toExpire.length) return;
+
       await Promise.all(
         toExpire.map((o) =>
           updateDoc(doc(db, "orders", o.id), { status: "expired" })

@@ -1,10 +1,25 @@
 import React, { useState } from "react";
-import { updateDoc, doc, serverTimestamp, getDoc } from "firebase/firestore";
+import {
+  updateDoc,
+  doc,
+  serverTimestamp,
+  getDoc,
+  Firestore,
+} from "firebase/firestore";
 import { Camera, QrCode, Package } from "lucide-react";
-import ScannerModal from "../components/ScannerModal.jsx";
-import AdminOrderCard from "../components/AdminOrderCard.jsx";
-import Modal from "../../../ui/Modal.jsx";
-import { isExpired } from "../utils/orders.js";
+import ScannerModal from "../components/ScannerModal"; // Extension .jsx retirée
+import AdminOrderCard from "../components/AdminOrderCard"; // Extension .jsx retirée
+import Modal from "../../../ui/Modal"; // Extension .jsx retirée
+import { isExpired } from "../utils/orders"; // Extension .js retirée
+import { Order } from "../../../types";
+
+interface AdminOrdersTabProps {
+  db: Firestore;
+  orders: Order[];
+  loading: boolean;
+  ttlMs: number;
+  setFeedback: (fb: { type: "success" | "error"; msg: string } | null) => void;
+}
 
 export default function AdminOrdersTab({
   db,
@@ -12,19 +27,19 @@ export default function AdminOrdersTab({
   loading,
   ttlMs,
   setFeedback,
-}) {
+}: AdminOrdersTabProps) {
   const [scanInput, setScanInput] = useState("");
   const [scannerOpen, setScannerOpen] = useState(false);
-  const [cashOrder, setCashOrder] = useState(null);
+  const [cashOrder, setCashOrder] = useState<Order | null>(null);
 
   const activeOrders = orders.filter((o) =>
     ["created", "scanned", "cash", "paid", "reward_pending"].includes(o.status)
   );
 
-  const cleanToken = (input) => {
+  const cleanToken = (input: string) => {
     if (!input) return "";
     const val = String(input).trim();
-    if (val.includes("/")) return val.split("/").pop().toUpperCase();
+    if (val.includes("/")) return val.split("/").pop()?.toUpperCase() || "";
     return val.toUpperCase();
   };
 
@@ -73,12 +88,12 @@ export default function AdminOrdersTab({
         msg: isReward ? "CADEAU VALIDÉ !" : "SCAN OK ! En attente paiement.",
       });
       setScanInput("");
-    } catch (err) {
+    } catch (err: any) {
       setFeedback({ type: "error", msg: "Erreur : " + err.message });
     }
   };
 
-  const requestCashConfirm = (order) => {
+  const requestCashConfirm = (order: Order) => {
     setCashOrder(order);
   };
 
@@ -92,8 +107,10 @@ export default function AdminOrdersTab({
         status: "paid",
         paid_at: serverTimestamp(),
         payment_method: "cash",
+        // Calcul simplifié des points (à adapter selon votre logique)
         points_earned: Number(o.total_cents || 0) / 100,
       });
+
       if (o.user_id) {
         const uRef = doc(db, "users", o.user_id);
         const uSnap = await getDoc(uRef);
@@ -103,19 +120,19 @@ export default function AdminOrdersTab({
         }
       }
       setFeedback({ type: "success", msg: "Paiement validé !" });
-    } catch (e) {
+    } catch (e: any) {
       alert(e.message);
     }
   };
 
-  const handleServe = async (orderId) => {
+  const handleServe = async (orderId: string) => {
     try {
       await updateDoc(doc(db, "orders", orderId), {
         status: "served",
         served_at: serverTimestamp(),
       });
       setFeedback({ type: "success", msg: "Commande servie et archivée." });
-    } catch (e) {
+    } catch (e: any) {
       alert(e.message);
     }
   };
@@ -125,7 +142,7 @@ export default function AdminOrdersTab({
       <ScannerModal
         open={scannerOpen}
         onClose={() => setScannerOpen(false)}
-        onScan={(t) => t && setScanInput(cleanToken(t))}
+        onScan={(t: string) => t && setScanInput(cleanToken(t))}
       />
 
       <Modal

@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useMemo } from "react";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import confetti from "canvas-confetti";
 import { useFeedback } from "../../../hooks/useFeedback";
+import { Product, UserProfile } from "../../../types";
 
 const COST = 10;
 const TOTAL_ITEMS = 80;
@@ -11,7 +12,7 @@ const ITEM_WIDTH = 120;
 const GAP = 12;
 const EASING = "cubic-bezier(0.15, 0.85, 0.25, 1)";
 
-function getRandomItemForVisual(items: any[]) {
+function getRandomItemForVisual(items: Product[]) {
   if (!items || items.length === 0) return null;
   return items[Math.floor(Math.random() * items.length)];
 }
@@ -20,8 +21,16 @@ function nextFrame() {
   return new Promise<void>((r) => requestAnimationFrame(() => r()));
 }
 
-export function useRouletteLogic({ user, products, notify }: any) {
-  const [gameState, setGameState] = useState("idle");
+interface UseRouletteProps {
+  user: UserProfile | null;
+  products: Product[];
+  notify?: (msg: string, type: "success" | "error" | "info") => void;
+}
+
+export function useRouletteLogic({ user, products, notify }: UseRouletteProps) {
+  const [gameState, setGameState] = useState<"idle" | "spinning" | "won">(
+    "idle"
+  );
   const containerRef = useRef<HTMLDivElement>(null);
   const stripRef = useRef<HTMLDivElement>(null);
   const animationRef = useRef<Animation | null>(null);
@@ -31,15 +40,12 @@ export function useRouletteLogic({ user, products, notify }: any) {
   const { trigger } = useFeedback();
 
   const availableProducts = useMemo(
-    () =>
-      (products || []).filter(
-        (p: any) => p && p.id && p.is_available !== false
-      ),
+    () => (products || []).filter((p) => p && p.id && p.is_available !== false),
     [products]
   );
 
-  // CORRECTION : Lazy initialization
-  const [strip, setStrip] = useState<any[]>(() => {
+  // Lazy initialization correcte
+  const [strip, setStrip] = useState<(Product | null)[]>(() => {
     if (availableProducts.length > 0) {
       return Array.from({ length: 15 }, () =>
         getRandomItemForVisual(availableProducts)
@@ -56,7 +62,7 @@ export function useRouletteLogic({ user, products, notify }: any) {
         )
       );
     }
-  }, [availableProducts.length]); // Dépendance simplifiée
+  }, [availableProducts.length]);
 
   const canPlay =
     (user?.points || 0) >= COST &&
@@ -71,7 +77,7 @@ export function useRouletteLogic({ user, products, notify }: any) {
     };
   }, []);
 
-  const spin = async (onSuccess: (winner: any) => void) => {
+  const spin = async (onSuccess: (winner: Product) => void) => {
     if (!canPlay) return;
 
     setGameState("spinning");
@@ -79,14 +85,18 @@ export function useRouletteLogic({ user, products, notify }: any) {
 
     try {
       const playRouletteFn = httpsCallable(functions, "playRoulette");
+
+      // Génération de la bande visuelle
       const tempStrip = Array.from({ length: TOTAL_ITEMS }, () =>
         getRandomItemForVisual(availableProducts)
       );
       setStrip(tempStrip);
 
+      // Appel Cloud Function
       const result: any = await playRouletteFn();
-      const { winner } = result.data;
+      const winner = result.data.winner as Product;
 
+      // On place le vrai gagnant à l'index final
       const finalStrip = [...tempStrip];
       finalStrip[WINNER_INDEX] = winner;
       setStrip(finalStrip);
@@ -105,6 +115,7 @@ export function useRouletteLogic({ user, products, notify }: any) {
           const containerWidth = cont.clientWidth || 0;
           const offset = containerWidth / 2 - ITEM_WIDTH / 2;
           const targetLeft = WINNER_INDEX * (ITEM_WIDTH + GAP);
+          // Petit décalage aléatoire pour le réalisme
           const randomShift = Math.floor(Math.random() * 40) - 20;
           const finalX = -(targetLeft - offset + randomShift);
 
@@ -123,6 +134,7 @@ export function useRouletteLogic({ user, products, notify }: any) {
             animationRef.current = anim;
             await anim.finished;
           } else {
+            // Fallback
             el.style.transition = `transform ${SPIN_SECONDS}s ${EASING}`;
             el.style.transform = `translate3d(${finalX}px,0,0)`;
             await new Promise((r) => setTimeout(r, SPIN_SECONDS * 1000));

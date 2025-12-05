@@ -1,7 +1,7 @@
 import { User } from "firebase/auth";
-import { Firestore } from "firebase/firestore";
+import { Firestore, Timestamp } from "firebase/firestore";
 
-// Ajout de l'interface Product (c'est un CartItem sans la quantité)
+// Interface de base pour un produit
 export interface Product {
   id: string;
   name: string;
@@ -10,13 +10,17 @@ export interface Product {
   image?: string;
   is_available?: boolean;
   description?: string;
+  // Ajout possible de probability pour la roulette
+  probability?: number;
 }
 
 // CartItem étend Product en ajoutant la quantité
 export interface CartItem extends Product {
   qty: number;
+  source?: string; // Ex: "Roulette", "Boutique"
 }
 
+// Interface stricte pour une Commande (Order)
 export interface Order {
   id: string;
   user_id: string;
@@ -31,13 +35,17 @@ export interface Order {
     | "expired"
     | "cash";
   items: CartItem[];
-  created_at: any; // On garde 'any' pour le timestamp Firestore pour l'instant
+  // Typage précis des timestamps Firestore
+  created_at: Timestamp;
   payment_method?: string;
   points_earned?: number;
-  paid_at?: any;
-  served_at?: any;
+  paid_at?: Timestamp;
+  served_at?: Timestamp;
+  cash_requested_at?: Timestamp;
+  source?: string;
 }
 
+// Interface pour le profil utilisateur
 export interface UserProfile {
   uid: string;
   email: string;
@@ -58,12 +66,12 @@ export interface AuthContextType {
   userData: UserProfile | null;
   loading: boolean;
   isAdmin: boolean;
-  db: Firestore;
+  db: Firestore; // Typage strict de l'instance Firestore
 }
 
 export interface CartContextType {
   cart: CartItem[];
-  addToCart: (product: Product | CartItem) => void; // Accepte les deux
+  addToCart: (product: Product | CartItem) => void;
   removeFromCart: (productId: string) => void;
   clearCart: () => void;
   createOrder: (
