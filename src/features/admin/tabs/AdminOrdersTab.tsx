@@ -7,10 +7,10 @@ import {
   Firestore,
 } from "firebase/firestore";
 import { Camera, QrCode, Package } from "lucide-react";
-import ScannerModal from "../components/ScannerModal"; // Extension .jsx retirée
-import AdminOrderCard from "../components/AdminOrderCard"; // Extension .jsx retirée
-import Modal from "../../../ui/Modal"; // Extension .jsx retirée
-import { isExpired } from "../utils/orders"; // Extension .js retirée
+import ScannerModal from "../components/ScannerModal";
+import AdminOrderCard from "../components/AdminOrderCard";
+import Modal from "../../../ui/Modal";
+import { isExpired } from "../utils/orders";
 import { Order } from "../../../types";
 
 interface AdminOrdersTabProps {
@@ -107,7 +107,6 @@ export default function AdminOrdersTab({
         status: "paid",
         paid_at: serverTimestamp(),
         payment_method: "cash",
-        // Calcul simplifié des points (à adapter selon votre logique)
         points_earned: Number(o.total_cents || 0) / 100,
       });
 
@@ -121,7 +120,8 @@ export default function AdminOrdersTab({
       }
       setFeedback({ type: "success", msg: "Paiement validé !" });
     } catch (e: any) {
-      alert(e.message);
+      // Remplacement de alert()
+      setFeedback({ type: "error", msg: "Erreur encaissement : " + e.message });
     }
   };
 
@@ -133,7 +133,11 @@ export default function AdminOrdersTab({
       });
       setFeedback({ type: "success", msg: "Commande servie et archivée." });
     } catch (e: any) {
-      alert(e.message);
+      // Remplacement de alert()
+      setFeedback({
+        type: "error",
+        msg: "Erreur lors du service : " + e.message,
+      });
     }
   };
 

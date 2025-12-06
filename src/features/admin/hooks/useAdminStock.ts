@@ -5,14 +5,15 @@ import {
   deleteDoc,
   doc,
   updateDoc,
-  Firestore, // Import du type
+  Firestore,
 } from "firebase/firestore";
 import { Product } from "../../../types";
+import { useFeedback } from "../../../context/FeedbackContext"; // AJOUT
 
 export function useAdminStock(db: Firestore, products: Product[]) {
+  const { notify } = useFeedback(); // Utilisation du context
   const [stockQuery, setStockQuery] = useState("");
 
-  // État local pour le formulaire d'ajout
   const [newProduct, setNewProduct] = useState({
     name: "",
     price: "",
@@ -23,7 +24,6 @@ export function useAdminStock(db: Firestore, products: Product[]) {
   const stockList = useMemo(() => {
     const q = stockQuery.trim().toLowerCase();
     const list = [...(products || [])];
-    // Tri alphabétique
     list.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
 
     return list.filter((p) =>
@@ -36,8 +36,9 @@ export function useAdminStock(db: Firestore, products: Product[]) {
       await updateDoc(doc(db, "products", p.id), {
         is_available: !p.is_available,
       });
+      // Optionnel : notify("Disponibilité mise à jour", "success");
     } catch (e: any) {
-      alert("Erreur lors de la mise à jour : " + e.message);
+      notify("Erreur MAJ : " + e.message, "error"); // Alert remplacé
     }
   };
 
@@ -47,21 +48,22 @@ export function useAdminStock(db: Firestore, products: Product[]) {
     try {
       await addDoc(collection(db, "products"), {
         ...newProduct,
-        price_cents: Number(newProduct.price) * 100, // Conversion en centimes
+        price_cents: Number(newProduct.price) * 100,
         is_available: true,
       });
       setNewProduct({ name: "", price: "", category: "Snacks", image: "" });
-      alert("Produit ajouté avec succès !");
+      notify("Produit ajouté avec succès !", "success"); // Alert remplacé
     } catch (err: any) {
-      alert("Erreur ajout : " + err.message);
+      notify("Erreur ajout : " + err.message, "error"); // Alert remplacé
     }
   };
 
   const handleDeleteProduct = async (id: string) => {
     try {
       await deleteDoc(doc(db, "products", id));
+      notify("Produit supprimé.", "info"); // Ajout feedback
     } catch (err: any) {
-      alert("Erreur suppression : " + err.message);
+      notify("Erreur suppression : " + err.message, "error"); // Alert remplacé
     }
   };
 

@@ -10,7 +10,7 @@ export interface Product {
   image?: string;
   is_available?: boolean;
   description?: string;
-  // Ajout possible de probability pour la roulette
+  // Probabilité pour la roulette (optionnel)
   probability?: number;
 }
 
@@ -47,6 +47,8 @@ export interface Order {
 
 // Interface pour le profil utilisateur
 export interface UserProfile {
+  // Ajout de l'ID optionnel pour manipuler l'objet complet avec son ID Firestore
+  id?: string;
   uid: string;
   email: string;
   displayName: string;
@@ -66,7 +68,7 @@ export interface AuthContextType {
   userData: UserProfile | null;
   loading: boolean;
   isAdmin: boolean;
-  db: Firestore; // Typage strict de l'instance Firestore
+  db: Firestore;
 }
 
 export interface CartContextType {

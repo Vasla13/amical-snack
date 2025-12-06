@@ -154,8 +154,9 @@ export default function Catalog({ products }: CatalogProps) {
           : filteredProducts.map((p: Product) => {
               const qty = cart.find((i) => i.id === p.id)?.qty || 0;
               const available = p.is_available !== false;
-              // @ts-ignore
-              const isFav = favorites?.includes(p.id);
+
+              // CORRECTION TS : Vérification null safe
+              const isFav = (favorites || []).includes(p.id);
 
               return (
                 <div
@@ -236,8 +237,12 @@ export default function Catalog({ products }: CatalogProps) {
           setSelectedProduct(null);
         }}
         onToggleFav={toggleFavorite}
-        // @ts-ignore
-        isFav={selectedProduct && favorites?.includes(selectedProduct.id)}
+        // CORRECTION TS : Vérification null safe
+        isFav={
+          selectedProduct
+            ? (favorites || []).includes(selectedProduct.id)
+            : false
+        }
         allProducts={products}
       />
 

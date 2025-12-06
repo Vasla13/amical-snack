@@ -3,19 +3,30 @@ import { Bell } from "lucide-react";
 import { requestNotificationPermission } from "../../config/firebase";
 import { doc, updateDoc } from "firebase/firestore";
 import { useAuth } from "../../context/AuthContext";
+import { useFeedback } from "../../context/FeedbackContext"; // AJOUT
 
 export default function NotificationButton() {
   const { user, db } = useAuth();
+  const { notify } = useFeedback(); // Hook
 
   const handleSubscribe = async () => {
     const token = await requestNotificationPermission();
     if (token && user) {
-      await updateDoc(doc(db, "users", user.uid), { fcmToken: token });
-      alert(
-        "Notifications activées ! Vous serez averti quand votre commande sera prête."
-      );
+      try {
+        await updateDoc(doc(db, "users", user.uid), { fcmToken: token });
+        notify(
+          "Notifications activées avec succès ! Vous serez averti.",
+          "success"
+        );
+      } catch (e) {
+        console.error(e);
+        notify("Erreur lors de l'activation des notifications.", "error");
+      }
     } else {
-      alert("Impossible d'activer les notifications (permissions refusées ?)");
+      notify(
+        "Impossible d'activer les notifications (permissions refusées ?)",
+        "error"
+      );
     }
   };
 

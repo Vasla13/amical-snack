@@ -8,10 +8,12 @@ import {
   Firestore,
 } from "firebase/firestore";
 import { Search, User, Plus, Minus } from "lucide-react";
-import Modal from "../../../ui/Modal"; // Extension .jsx retirée
+import Modal from "../../../ui/Modal";
 import { UserProfile } from "../../../types";
+import { useFeedback } from "../../../context/FeedbackContext"; // Import du contexte de feedback
 
 export default function AdminUsersTab({ db }: { db: Firestore }) {
+  const { notify } = useFeedback(); // Utilisation du hook
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [search, setSearch] = useState("");
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
@@ -21,7 +23,8 @@ export default function AdminUsersTab({ db }: { db: Firestore }) {
   useEffect(() => {
     return onSnapshot(collection(db, "users"), (s) => {
       setUsers(
-        s.docs.map((d) => ({ id: d.id, ...d.data() } as unknown as UserProfile))
+        // Casting propre grâce à l'ajout de id? dans l'interface UserProfile
+        s.docs.map((d) => ({ id: d.id, ...d.data() } as UserProfile))
       );
     });
   }, [db]);
@@ -44,26 +47,38 @@ export default function AdminUsersTab({ db }: { db: Firestore }) {
   const handleUpdatePoints = async () => {
     if (!selectedUser || !amount) return;
     const val = parseFloat(amount);
-    if (isNaN(val) || val <= 0) return alert("Montant invalide");
+
+    // Remplacement de alert() par notify()
+    if (isNaN(val) || val <= 0) {
+      notify("Montant invalide", "error");
+      return;
+    }
 
     const finalAmount = actionType === "credit" ? val : -val;
 
     try {
-      // @ts-ignore : L'id est ajouté manuellement lors du map, mais pas dans l'interface de base
+      // Utilisation sécurisée de l'ID (id du doc ou uid auth)
       const userId = selectedUser.id || selectedUser.uid;
+
+      if (!userId) throw new Error("ID utilisateur introuvable");
 
       await updateDoc(doc(db, "users", userId), {
         points: increment(finalAmount),
       });
+
+      notify(
+        `Points ${actionType === "credit" ? "ajoutés" : "retirés"} avec succès`,
+        "success"
+      );
       setSelectedUser(null);
     } catch (e: any) {
-      alert("Erreur : " + e.message);
+      console.error(e);
+      notify("Erreur : " + e.message, "error");
     }
   };
 
   return (
     <div className="space-y-4">
-      {/* ... Le JSX reste identique ... */}
       <div className="relative">
         <Search
           className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
@@ -78,7 +93,7 @@ export default function AdminUsersTab({ db }: { db: Firestore }) {
       </div>
 
       <div className="space-y-2 pb-20">
-        {filteredUsers.map((u: any) => (
+        {filteredUsers.map((u) => (
           <div
             key={u.id || u.uid}
             className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex justify-between items-center"
